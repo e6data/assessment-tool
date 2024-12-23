@@ -1,5 +1,5 @@
-# e6data Migration Assessment Tool
-The Migration Assessment tool enables the extraction of metadata and query history (including query metrics) from a existing data
+# e6data Pilot Assessment Tool
+The Pilot Assessment tool enables the extraction of metadata and query history (including query metrics) from a existing data
 warehouse for further analysis.
 ```
 Metadata: database name, database size, table name, table size, row count, partition info, external databases/tables info
