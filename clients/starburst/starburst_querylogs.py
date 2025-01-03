@@ -61,7 +61,7 @@ def extract_query_logs():
             df['execution_start_time'] = df['execution_start_time'].astype(str)
             df['end_time'] = df['end_time'].astype(str)
 
-            parquet_filename = f"{parquet_output_dir}/query_history_starburst_1.parquet"
+            parquet_filename = f"{parquet_output_dir}/query_history_starburst.parquet"
             df.to_parquet(parquet_filename, index=False)
             logger.info(f"Data has been exported to {os.path.basename(parquet_filename)}")
         logger.info(f"Query Log Successfully Exported to {parquet_output_dir}")
