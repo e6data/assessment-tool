@@ -6,11 +6,9 @@ import time
 import logging
 import pandas as pd
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-# Directory for Parquet output
 parquet_output_dir = 'databricks-query-logs'
 os.makedirs(parquet_output_dir, exist_ok=True)
 
@@ -59,10 +57,12 @@ def extract_query_logs():
             "Authorization": f"Bearer {access_token}"
         }
         query_history = []
-        has_more = True
         next_page_token = None
+        max_pages = 100
 
-        while has_more:
+        logger.info("Starting to fetch query history...")
+
+        for page_number in range(max_pages):
             payload = {
                 "filter_by": {
                     "statuses": ["FINISHED"],
@@ -76,16 +76,34 @@ def extract_query_logs():
             if next_page_token:
                 payload["page_token"] = next_page_token
 
-            response = requests.get(API_URL, json=payload, headers=headers)
+            try:
+                response = requests.get(API_URL, json=payload, headers=headers)
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error during API call on page {page_number + 1}: {e}")
+                break
+
             response_data = response.json()
+
 
             queries = response_data.get('res', [])
             query_history.extend(queries)
+            logger.info(f"Page {page_number + 1}: Fetched {len(queries)} queries. Total so far: {len(query_history)}")
 
-            has_more = response_data.get("has_more", False)
             next_page_token = response_data.get("next_page_token", None)
 
+            if not response_data.get("has_more", True) or not next_page_token:
+                logger.info("No more pages to fetch.")
+                break
+
             time.sleep(0.5)
+
+        logger.info(f"Filtering out system-generated queries. Initial count: {len(query_history)}")
+        query_history = [
+            query for query in query_history
+            if "This is a system generated query from sql editor" not in query.get("query_text", "")
+        ]
+        logger.info(f"Filtered query count: {len(query_history)}")
 
         output_parquet = f"{parquet_output_dir}/query_history_output.parquet"
         save_query_history_to_parquet(query_history, output_parquet)
@@ -95,7 +113,6 @@ def extract_query_logs():
             logger.info(f"No data to write in {output_parquet}")
             return
 
-        # Convert query history to a DataFrame
         data = []
         for query in query_history:
             query_text = query.get("query_text", "")
@@ -135,10 +152,8 @@ def extract_query_logs():
                 "query_compilation_start_timestamp": metrics.get("query_compilation_start_timestamp")
             })
 
-        # Create a DataFrame
         df = pd.DataFrame(data)
 
-        # Save to Parquet
         df.to_parquet(output_parquet, index=False)
         logger.info(f"Query history exported to {output_parquet}")
 
