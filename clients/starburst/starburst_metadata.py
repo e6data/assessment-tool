@@ -71,8 +71,13 @@ def extract_metadata():
                         df_stats['schema_name'] = schema
                         df_stats['table_name'] = table_name
                         combined_stats = pd.concat([combined_stats, df_stats], ignore_index=True)
-                    continue
-                logger.info(f"Stats saved to {stats_output_path}/stats_{schema}.parquet")
+
+                if not combined_stats.empty:
+                    combined_stats.to_parquet(stats_output_path, index=False)
+                    logger.info(f"Stats for schema '{schema}' saved to {stats_output_path}")
+                else:
+                    logger.info(f"No stats available for schema '{schema}'")
+
         session.close()
     except Exception as e:
         logger.error(f"Error extracting Starburst metadata: {str(e)}")

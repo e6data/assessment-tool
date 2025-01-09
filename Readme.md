@@ -1,5 +1,5 @@
-# e6data Pilot Assessment Tool
-The Pilot Assessment tool enables the extraction of metadata and query history (including query metrics) from a existing data
+# e6data Assessment Tool
+The Assessment tool enables the extraction of metadata and query history (including query metrics) from a existing data
 warehouse for further analysis.
 ```
 Metadata: database name, database size, table name, table size, row count, partition info, external databases/tables info
@@ -25,8 +25,8 @@ Set environment variables pertaining to your databricks configurations (host, ac
 > export DBR_HOST=<databricks_host> \
 > export DBR_WAREHOUSE_ID=<warehouse_id> \
 > export DBR_ACCESS_TOKEN=<databrciks_token> \
-> export query_log_start='YYYY-MM-DD' (Example 2024-10-11) \
-> export query_log_end='YYYY-MM-DD' (Example 2024-10-15)
+> export QUERY_LOG_START='YYYY-MM-DD' (Example 2024-10-11) \
+> export QUERY_LOG_END='YYYY-MM-DD' (Example 2024-10-15)
 
 To run the assessment script :
 > python3 clients/main.py databricks
