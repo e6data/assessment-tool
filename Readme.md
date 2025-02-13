@@ -86,7 +86,7 @@ Set environment variables pertaining to your databricks configurations (host, ac
 
 
 To run the assessment script :
-> python3 clients/main.py databricks
+> python3 clients/main.py trino_client
 
 #### Starburst 
 Pre Assessment Requirements:
