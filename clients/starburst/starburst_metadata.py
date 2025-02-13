@@ -61,6 +61,9 @@ def extract_metadata():
             else:
                 for table_row in df_tables.itertuples():
                     table_name = table_row[1]
+                    analyze_stats = f"ANALYZE \"{catalog}\".\"{schema}\".\"{table_name}\""
+                    session.sql(analyze_stats)
+                    logger.info(f"Running Analyse on {table_name}")
                     metadata_stats_query = f"SHOW STATS FOR \"{schema}\".\"{table_name}\""
 
                     logger.info(f"Fetching stats for {table_name}")

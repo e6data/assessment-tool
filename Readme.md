@@ -56,6 +56,38 @@ To run the assessment script :
 
 > python3 clients/main.py snowflake
 
+
+#### Trino
+
+Pre Assessment Requirements:
+
+- Trino permissions to view query history
+- Python 3.9 or above
+- Pandas, Trino SQL Python connector
+
+
+> pip install pandas \
+> pip install trino
+
+Set environment variables pertaining to your databricks configurations (host, access_token, warehouse_id, etc.)
+
+
+> export TRINO_AUTH_TYPE=<none/BasicAuthentication> \
+> export TRINO_HOST=<trino_host> \
+> export TRINO_PORT=<trino_port> \
+> export TRINO_USER=<trino_user> \
+> export TRINO_PASSWORD=<trino_password> \
+> export TRINO_USE_HTTPS=<true/false> \
+> export TRINO_CATALOG=<trino_catalog> \
+> export TRINO_SCHEMA=<trino_schema> \
+> export COLUMN_STATS=true \
+> export QUERY_LOG_START='YYYY-MM-DD' (Example '2025-02-01') \
+> export QUERY_LOG_END='YYYY-MM-DD' (Example '2025-02-15')
+
+
+To run the assessment script :
+> python3 clients/main.py databricks
+
 #### Starburst 
 Pre Assessment Requirements:
 
