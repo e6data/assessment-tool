@@ -69,7 +69,7 @@ Pre Assessment Requirements:
 > pip install pandas \
 > pip install trino
 
-Set environment variables pertaining to your databricks configurations (host, access_token, warehouse_id, etc.)
+Set environment variables pertaining to your trino configurations (host, password, warehouse_id, etc.)
 
 
 > export TRINO_AUTH_TYPE=<none/BasicAuthentication> \
