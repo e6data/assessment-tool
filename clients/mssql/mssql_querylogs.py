@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def extract_query_logs():
+def extract_query_logs(directory):
     server = os.environ.get('MSSQL_SERVER')
     port = os.environ.get('MSSQL_PORT')
     user = os.environ.get('MSSQL_USER')
@@ -15,7 +15,7 @@ def extract_query_logs():
     database = os.environ.get('MSSQL_DATABASE')
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
-    csv_output_dir = 'mssql-query-logs'
+    csv_output_dir = directory
     os.makedirs(csv_output_dir, exist_ok=True)
     logger.info("Connecting to MSSQL Server...")
     try:

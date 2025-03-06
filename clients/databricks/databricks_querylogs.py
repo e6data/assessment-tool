@@ -9,18 +9,17 @@ import pandas as pd
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-parquet_output_dir = 'databricks-query-logs'
-os.makedirs(parquet_output_dir, exist_ok=True)
 
 
-def extract_query_logs():
+def extract_query_logs(directory):
     catalog = 'system'
     database = 'information_schema'
     access_token = os.environ.get('DBR_ACCESS_TOKEN')
     warehouse_id = os.environ.get('DBR_WAREHOUSE_ID')
-
     DBR_HOSTNAME = os.environ.get('DBR_HOST')
     API_URL = f"https://{DBR_HOSTNAME}/api/2.0/sql/history/queries"
+    parquet_output_dir = directory
+    os.makedirs(parquet_output_dir, exist_ok=True)
 
     def create_DBR_connection():
         return sql.connect(server_hostname=DBR_HOSTNAME,

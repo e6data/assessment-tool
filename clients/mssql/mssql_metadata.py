@@ -23,13 +23,13 @@ def run_query_and_save_to_parquet(cursor, query, parquet_filename, parquet_outpu
         logger.error(f"Failed to execute query for {parquet_filename}: {e}")
 
 
-def extract_metadata():
+def extract_metadata(directory):
     server = os.environ.get('MSSQL_SERVER')
     port = os.environ.get('MSSQL_PORT')
     user = os.environ.get('MSSQL_USER')
     password = os.environ.get('MSSQL_PASSWORD')
     database = os.environ.get('MSSQL_DATABASE')
-    parquet_output_dir = 'mssql-metadata'
+    parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
     logger.info("Connecting to MSSQL Server...")
     try:

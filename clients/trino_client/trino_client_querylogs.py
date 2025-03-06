@@ -14,7 +14,7 @@ logging.basicConfig(format=MSG_FORMAT, datefmt=DATETIME_FORMAT)
 logger.setLevel(logging.INFO)
 
 
-def extract_query_logs():
+def extract_query_logs(directory):
     auth_type = os.environ.get('TRINO_AUTH_TYPE')
     host = os.environ.get('TRINO_HOST')
     port = os.environ.get('TRINO_PORT')
@@ -23,7 +23,7 @@ def extract_query_logs():
     use_https = os.environ.get('TRINO_USE_HTTPS', 'false').lower() in ('true', '1', 'yes')
     ca_cert_path = os.environ.get('TRINO_CERT_PATH')
     key_path = os.environ.get('TRINO_KEY_PATH')
-    parquet_output_dir = 'trino-query-logs'
+    parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
