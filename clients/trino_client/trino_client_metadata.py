@@ -13,7 +13,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def extract_metadata():
+def extract_metadata(directory):
     auth_type = os.environ.get('TRINO_AUTH_TYPE')
     host = os.environ.get('TRINO_HOST')
     port = os.environ.get('TRINO_PORT')
@@ -25,7 +25,7 @@ def extract_metadata():
     catalog = os.environ.get('TRINO_CATALOG')
     schema = os.environ.get('TRINO_SCHEMA')
     export_stats = os.environ.get('COLUMN_STATS', 'false').lower() == 'true'
-    parquet_output_dir = 'trino-metadata'
+    parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
     stats_output_path = os.path.join(parquet_output_dir, f'stats_{schema}.parquet')
 

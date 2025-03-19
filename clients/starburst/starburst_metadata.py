@@ -11,7 +11,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def extract_metadata():
+def extract_metadata(directory):
     host = os.environ.get('STARBURST_HOST')
     port = os.environ.get('STARBURST_PORT')
     user = os.environ.get('STARBURST_USER')
@@ -19,7 +19,7 @@ def extract_metadata():
     catalog = os.environ.get('STARBURST_CATALOG')
     schema = os.environ.get('STARBURST_SCHEMA')
     export_stats = os.environ.get('COLUMN_STATS', 'false').lower() == 'true'
-    parquet_output_dir = 'starburst-metadata'
+    parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
     stats_output_path = os.path.join(parquet_output_dir, f'stats_{schema}.parquet')
 

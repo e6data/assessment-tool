@@ -13,7 +13,7 @@ logging.basicConfig(format=MSG_FORMAT, datefmt=DATETIME_FORMAT)
 logger.setLevel(logging.INFO)
 
 
-def extract_query_logs():
+def extract_query_logs(directory):
     host = os.environ.get('STARBURST_HOST')
     port = os.environ.get('STARBURST_PORT')
     user = os.environ.get('STARBURST_USER')
@@ -23,7 +23,7 @@ def extract_query_logs():
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
 
-    parquet_output_dir = 'starburst-query-logs'
+    parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
 
     db_parameters = {

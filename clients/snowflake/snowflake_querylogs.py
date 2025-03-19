@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def extract_query_logs():
+def extract_query_logs(directory):
     host = os.environ.get('SNOWFLAKE_HOST')
     user = os.environ.get('SNOWFLAKE_USER')
     role = os.environ.get('SNOWFLAKE_ROLE')
@@ -17,8 +17,7 @@ def extract_query_logs():
     schema = 'ACCOUNT_USAGE'
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
-
-    csv_output_dir = "sf-query-logs"
+    csv_output_dir = directory
     os.makedirs(csv_output_dir, exist_ok=True)
 
     try:
@@ -68,7 +67,6 @@ def extract_query_logs():
             parquet_filename = f"{csv_output_dir}/query_history_snowflake_1.parquet"
             df.to_parquet(parquet_filename, index=False)
             logger.info(f"Data has been exported to {os.path.basename(parquet_filename)}")
-
             logger.info(f"Query Log Successfully Exported to {csv_output_dir}")
         else:
             logger.info("No queries found for the specified date range.")

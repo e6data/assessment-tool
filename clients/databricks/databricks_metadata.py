@@ -5,24 +5,21 @@ import os
 import time
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
-csv_output_dir = 'databricks-metadata'
-os.makedirs(csv_output_dir, exist_ok=True)
 
-
-def extract_metadata():
+def extract_metadata(directory):
     catalog = 'system'
     database = 'information_schema'
     access_token = os.environ.get('DBR_ACCESS_TOKEN')
-    warehouse_id = os.environ.get('DBR_WAREHOUSE_ID')
-
-    DBR_HOSTNAME = os.environ.get('DBR_HOST')
-
+    http_path = os.environ.get('DBR_WAREHOUSE_ID')
+    dbr_server_hostname = os.environ.get('DBR_HOST')
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger()
+    csv_output_dir = directory
+    os.makedirs(csv_output_dir, exist_ok=True)
     def create_DBR_connection():
         return sql.connect(
-            server_hostname=DBR_HOSTNAME,
-            http_path=f'/sql/1.0/warehouses/{warehouse_id}',
+            server_hostname=dbr_server_hostname,
+            http_path=http_path,
             access_token=access_token,
             schema=database,
             catalog=catalog
