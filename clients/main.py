@@ -52,8 +52,7 @@ def extractor(engine_type):
             logger.error(f"Error during query log extraction: {str(e)}")
     else:
         logger.error(f"Module not found or failed to load for {engine_type} ")
-    if engine_type in {'snowflake'}:
-        zip_output_directory(output_dir)
+    zip_output_directory(output_dir)
 
 
 if __name__ == "__main__":
