@@ -23,6 +23,7 @@ def extract_query_logs(directory):
     use_https = os.environ.get('TRINO_USE_HTTPS', 'false').lower() in ('true', '1', 'yes')
     ca_cert_path = os.environ.get('TRINO_CERT_PATH')
     key_path = os.environ.get('TRINO_KEY_PATH')
+    query_history_table = os.environ.get('TRINO_QH_TABLE')
     parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
     query_log_start = os.environ.get('QUERY_LOG_START')
@@ -71,8 +72,7 @@ def extract_query_logs(directory):
         end_date = datetime.strptime(query_log_end, '%Y-%m-%d')
 
         history_query = f"""
-            select * from system.runtime.queries where date(created)>=date('{start_date.strftime('%Y-%m-%d')}') 
-            and date(created)<=date('{end_date.strftime('%Y-%m-%d')}')
+            select * from {query_history_table} limit 1000000
         """
         logger.info("Extracting Query logs...")
         cursor.execute(history_query)
