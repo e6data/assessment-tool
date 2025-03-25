@@ -80,6 +80,7 @@ Set environment variables pertaining to your trino configurations (host, passwor
 > export TRINO_USE_HTTPS=<true/false> \
 > export TRINO_CATALOG=<trino_catalog> \
 > export TRINO_SCHEMA=<trino_schema> \
+> export TRINO_QH_TABLE=<query_history_fully_qualified_name>  #i.e. db_name.schema_name.query_history_table \
 > export COLUMN_STATS=true \
 > export QUERY_LOG_START='YYYY-MM-DD' (Example '2025-02-01') \
 > export QUERY_LOG_END='YYYY-MM-DD' (Example '2025-02-15')

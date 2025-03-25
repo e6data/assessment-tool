@@ -17,6 +17,8 @@ def extract_query_logs(directory):
     access_token = os.environ.get('DBR_ACCESS_TOKEN')
     http_path = os.environ.get('DBR_WAREHOUSE_ID')
     dbr_server_hostname = os.environ.get('DBR_HOST')
+    API_URL = f"https://{dbr_server_hostname}/api/2.0/sql/history/queries"
+
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
     csv_output_dir = directory
@@ -58,7 +60,7 @@ def extract_query_logs(directory):
         }
         query_history = []
         next_page_token = None
-        max_pages = 100
+        max_pages = 10000
 
         logger.info("Starting to fetch query history...")
 
@@ -105,7 +107,7 @@ def extract_query_logs(directory):
         ]
         logger.info(f"Filtered query count: {len(query_history)}")
 
-        output_parquet = f"{parquet_output_dir}/query_history_output.parquet"
+        output_parquet = f"{csv_output_dir}/query_history_output.parquet"
         save_query_history_to_parquet(query_history, output_parquet)
 
     def save_query_history_to_parquet(query_history, output_parquet):
@@ -124,10 +126,11 @@ def extract_query_logs(directory):
             data.append({
                 "query_id": query.get("query_id"),
                 "query_text": query_text,
-                "user": query.get("user"),
-                "start_time": query.get("start_time"),
-                "end_time": query.get("end_time"),
-                "state": query.get("state"),
+                "user_id": query.get("user_id"),
+                "user": query.get("user_name"),
+                "start_time": query.get("query_start_time_ms"),
+                "end_time": query.get("execution_end_time_ms"),
+                "status": query.get("status"),
                 "total_time_ms": metrics.get("total_time_ms"),
                 "read_bytes": metrics.get("read_bytes"),
                 "rows_produced_count": metrics.get("rows_produced_count"),
