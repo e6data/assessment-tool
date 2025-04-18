@@ -15,9 +15,10 @@ def extract_query_logs(directory):
     catalog = 'system'
     database = 'information_schema'
     access_token = os.environ.get('DBR_ACCESS_TOKEN')
-    http_path = os.environ.get('DBR_WAREHOUSE_ID')
+    dbr_warehouse_id = os.environ.get('DBR_WAREHOUSE_ID')
     dbr_server_hostname = os.environ.get('DBR_HOST')
     API_URL = f"https://{dbr_server_hostname}/api/2.0/sql/history/queries"
+    http_path=f'/sql/1.0/warehouses/{dbr_warehouse_id}'
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
@@ -168,7 +169,48 @@ def extract_query_logs(directory):
 
         fetch_query_history(start_time_ms, end_time_ms)
 
+
+    def run_query_rest(query: str):
+        headers = {
+            'Authorization': f"Bearer {access_token}",
+            'Content-Type': 'application/json'
+        }
+        url = f"https://{dbr_server_hostname}/api/2.0/sql/statements"
+        payload = {'statement': query, 'warehouse_id': dbr_warehouse_id}
+        r = requests.post(url, headers=headers, json=payload)
+        r.raise_for_status()
+        sid = r.json()['statement_id']
+        logger.info(f"Submitted {sid}")
+
+        status_url = f"{url}/{sid}"
+        while True:
+            r = requests.get(status_url, headers=headers)
+            r.raise_for_status()
+            j = r.json()
+            state = j['status']['state']
+            if state in ('SUCCEEDED', 'FAILED', 'CANCELED'):
+                break
+            time.sleep(1)
+        if state != 'SUCCEEDED':
+            raise RuntimeError(f"Query {sid} failed: {state}")
+
+        cols = [c['name'] for c in j.get('manifest', {}).get('schema', {}).get('columns', [])]
+        data = j.get('result', {}).get('data_array', [])
+        return cols, data
+
     start_date = os.environ.get('QUERY_LOG_START')
     end_date = os.environ.get('QUERY_LOG_END')
 
-    fetch_query_history_by_date(start_date, end_date)
+    def history_exists_via_rest():
+        try:
+            cols, rows = run_query_rest("SELECT 1 FROM system.query.history LIMIT 1")
+            return bool(rows)
+        except Exception as e:
+            logger.warning(f"History‐exists check failed: {e}")
+            return False
+
+    if not history_exists_via_rest():
+        fetch_query_history_by_date(start_date, end_date)
+    else:
+        logger.info("SYSTEM QUERY HISTORY ALREADY POPULATED – skipping fetch_query_history_by_date")
+

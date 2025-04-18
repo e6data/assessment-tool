@@ -29,6 +29,8 @@ def extract_metadata(directory):
     user = os.environ.get('SNOWFLAKE_USER')
     password = os.environ.get('SNOWFLAKE_PASSWORD')
     role = os.environ.get('SNOWFLAKE_ROLE')
+    query_log_start = os.environ.get('QUERY_LOG_START')
+    query_log_end = os.environ.get('QUERY_LOG_END')
     database = 'SNOWFLAKE'
     schema = 'ACCOUNT_USAGE'
     csv_output_dir = directory
@@ -54,9 +56,9 @@ def extract_metadata(directory):
             'functions': """SELECT function_schema, function_name, data_type, FUNCTION_LANGUAGE, FUNCTION_DEFINITION, 
                         argument_signature FROM SNOWFLAKE.ACCOUNT_USAGE.FUNCTIONS WHERE DELETED IS NULL""",
             'warehouse': """SHOW WAREHOUSES""",
-            'warehouse_usage': """SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
-                                    WHERE DATE(start_time) <= CURRENT_DATE() 
-                                    AND DATE(start_time) >= CURRENT_DATE() - INTERVAL '30 DAY'"""
+            'warehouse_usage': f"""SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
+                                    WHERE DATE(start_time) <= date('{query_log_start}')
+                                    AND DATE(start_time) >= date('{query_log_end}') """
         }
 
         cursor = conn.cursor()
