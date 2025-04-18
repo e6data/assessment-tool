@@ -169,10 +169,6 @@ def extract_query_logs(directory):
 
         fetch_query_history(start_time_ms, end_time_ms)
 
-    start_date = os.environ.get('QUERY_LOG_START')
-    end_date = os.environ.get('QUERY_LOG_END')
-
-    STATEMENTS_API = f"https://{dbr_server_hostname}/api/2.0/sql/statements"
 
     def run_query_rest(query: str):
         headers = {
@@ -205,21 +201,14 @@ def extract_query_logs(directory):
     start_date = os.environ.get('QUERY_LOG_START')
     end_date = os.environ.get('QUERY_LOG_END')
 
-    # -----------------------------------------------------------------------------
-    # 1) define a tiny wrapper around your run_query_rest to return True/False
-    # -----------------------------------------------------------------------------
     def history_exists_via_rest():
         try:
             cols, rows = run_query_rest("SELECT 1 FROM system.query.history LIMIT 1")
             return bool(rows)
         except Exception as e:
-            # if the check itself errors, assume history isn't there yet
             logger.warning(f"History‐exists check failed: {e}")
             return False
 
-    # -----------------------------------------------------------------------------
-    # 2) only fetch if no history rows yet
-    # -----------------------------------------------------------------------------
     if not history_exists_via_rest():
         fetch_query_history_by_date(start_date, end_date)
     else:
