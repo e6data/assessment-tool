@@ -206,7 +206,7 @@ def extract_query_logs(directory):
             cols, rows = run_query_rest("SELECT 1 FROM system.query.history LIMIT 1")
             return bool(rows)
         except Exception as e:
-            logger.warning(f"History‐exists check failed: {e}")
+            logger.warning(f"History‐exists check failed: Fetching query for Query History API")
             return False
 
     if not history_exists_via_rest():

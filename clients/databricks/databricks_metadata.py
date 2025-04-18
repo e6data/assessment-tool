@@ -32,46 +32,75 @@ queries = {
     'views': "SELECT * FROM system.information_schema.views;",
     'billing': f"""
         WITH cte AS (
-            SELECT 
-                u.usage_date, 
-                u.account_id, 
-                u.workspace_id, 
-                u.sku_name, 
-                u.cloud, 
-                u.usage_start_time, 
-                u.usage_end_time, 
-                u.usage_date, 
-                ROUND(u.usage_quantity, 2) AS uq, 
-                u.usage_metadata, 
-                u.product_features, 
-                w.warehouse_name, 
-                u.usage_unit, 
-                u.usage_quantity
-            FROM system.billing.usage u 
-            INNER JOIN (
-                SELECT DISTINCT account_id, workspace_id, warehouse_id, warehouse_name 
-                FROM system.compute.warehouses
-            ) w 
-            ON u.account_id = w.account_id 
-               AND u.workspace_id = w.workspace_id 
-               AND u.usage_metadata.warehouse_id = w.warehouse_id
-            WHERE billing_origin_product = 'SQL' 
-              AND usage_date BETWEEN DATE('{start_date}') AND DATE('{end_date}')
-            ORDER BY u.usage_start_time
-        ),
-        cte1 AS (
-            SELECT 
-                COALESCE(p.price_end_time, DATE_ADD(CURRENT_DATE(), 1)) AS coalesced_price_end_time, 
-                cte.*, 
-                COALESCE(cte.usage_quantity * p.pricing.effective_list.default, 0) AS usage_usd
-            FROM system.billing.list_prices p
-            LEFT JOIN cte 
-              ON cte.sku_name = p.sku_name
-             AND cte.usage_unit = p.usage_unit
-            WHERE currency_code = 'USD'
-        )
-        SELECT *
-        FROM cte1;
+  SELECT 
+    u.usage_date,
+    u.account_id,
+    u.workspace_id,
+    u.sku_name,
+    u.cloud,
+    u.usage_start_time,
+    u.usage_end_time,
+    ROUND(u.usage_quantity, 2) AS uq,
+    u.usage_metadata,
+    u.product_features,
+    w.warehouse_name,
+    u.usage_unit,
+    u.usage_quantity
+  FROM system.billing.usage u
+inner join (select distinct account_id,workspace_id,warehouse_id,warehouse_name from system.compute.warehouses ) w 
+on (u.account_id = w.account_id and u.workspace_id = w.workspace_id and u.usage_metadata.warehouse_id = w.warehouse_id)
+where billing_origin_product = 'SQL'and 
+usage_date between date('{start_date}') and date('{end_date}')
+order by u.usage_start_time
+),
+cte1 AS (
+  SELECT
+    COALESCE(p.price_end_time, DATE_ADD(CURRENT_DATE(), 1)) AS coalesced_price_end_time,
+    p.price_start_time,
+    p.currency_code,
+    p.pricing.effective_list.default        AS price_per_unit,
+    cte.usage_date,
+    cte.account_id,
+    cte.workspace_id,
+    cte.sku_name,
+    cte.cloud,
+    cte.usage_start_time,
+    cte.usage_end_time,
+    cte.uq             AS usage_quantity_rounded,
+    cte.usage_metadata,
+    cte.product_features,
+    cte.warehouse_name,
+    cte.usage_unit,
+    cte.usage_quantity,
+    COALESCE(cte.usage_quantity * p.pricing.effective_list.default, 0) AS usage_usd
+  FROM system.billing.list_prices p
+  LEFT JOIN cte
+    ON cte.sku_name   = p.sku_name
+   AND cte.usage_unit = p.usage_unit
+  WHERE p.currency_code = 'USD'
+)
+
+SELECT
+  coalesced_price_end_time,
+  price_start_time,
+  currency_code,
+  price_per_unit,
+  usage_date,
+  account_id,
+  workspace_id,
+  sku_name,
+  cloud,
+  usage_start_time,
+  usage_end_time,
+  usage_quantity_rounded,
+  usage_metadata,
+  product_features,
+  warehouse_name,
+  usage_unit,
+  usage_quantity,
+  usage_usd
+FROM cte1
+ORDER BY usage_start_time
     """,
     'event': f"""
         WITH cte AS (
