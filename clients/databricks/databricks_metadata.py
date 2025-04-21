@@ -49,7 +49,7 @@ queries = {
   FROM system.billing.usage u
 inner join (select distinct account_id,workspace_id,warehouse_id,warehouse_name from system.compute.warehouses ) w 
 on (u.account_id = w.account_id and u.workspace_id = w.workspace_id and u.usage_metadata.warehouse_id = w.warehouse_id)
-where billing_origin_product = 'SQL'and 
+where billing_origin_product = 'SQL' and 
 usage_date between date('{start_date}') and date('{end_date}')
 order by u.usage_start_time
 ),
@@ -120,8 +120,7 @@ ORDER BY usage_start_time
         INNER JOIN cte
           ON warehouse_events.warehouse_id = cte.warehouse_id 
          AND event_time BETWEEN change_time AND next_change_time
-        WHERE warehouse_name = 'Customer-demo'
-          AND DATE(event_time) BETWEEN '{start_date}' AND '{end_date}'
+        WHERE DATE(event_time) BETWEEN '{start_date}' AND '{end_date}'
         ORDER BY event_time DESC;
     """,
     'warehouse_info': f"""
@@ -231,13 +230,12 @@ def run_query_and_save(query: str, filename: str, outdir: str):
 
 
 def run_hourly_query_history(outdir: str):
-    parquet_path = os.path.join(outdir, 'query_history.parquet')
-    chunks = []
     current = start_date
     while current < end_date:
         next_hour = current + timedelta(hours=1)
         start_ts = current.strftime('%Y-%m-%d %H:%M:%S')
         end_ts = next_hour.strftime('%Y-%m-%d %H:%M:%S')
+
         q = (
             f"""SELECT * FROM system.query.history 
             WHERE start_time >= TIMESTAMP '{start_ts}' 
@@ -245,21 +243,22 @@ def run_hourly_query_history(outdir: str):
         )
         logger.info(f"Querying history from {start_ts} to {end_ts}")
         cols, data = run_query_rest(q)
+
         if data:
             df = pd.DataFrame(data, columns=cols)
-            chunks.append(df)
+
+            partition_str = current.strftime('%Y%m%d_%H')
+            df["hour_partition"] = partition_str
+
+            df.to_parquet(
+                os.path.join(outdir, "query_history"),
+                partition_cols=["hour_partition"],
+                index=False,
+                engine="pyarrow",
+                compression='snappy',
+            )
+
         current = next_hour
-
-    if chunks:
-        result_df = pd.concat(chunks, ignore_index=True)
-    else:
-        result_df = pd.DataFrame(columns=cols if 'cols' in locals() else [])
-
-    if os.path.exists(parquet_path):
-        existing = pd.read_parquet(parquet_path)
-        result_df = pd.concat([existing, result_df], ignore_index=True).drop_duplicates()
-    result_df.to_parquet(parquet_path, index=False)
-    logger.info(f"Appended history: total {len(result_df)} rows in {parquet_path}")
 
 
 def extract_metadata(directory):

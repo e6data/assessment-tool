@@ -22,8 +22,8 @@ def extract_query_logs(directory):
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
-    csv_output_dir = directory
-    os.makedirs(csv_output_dir, exist_ok=True)
+    parquet_output_dir = directory
+    os.makedirs(parquet_output_dir, exist_ok=True)
     def create_DBR_connection():
         return sql.connect(
             server_hostname=dbr_server_hostname,
@@ -108,7 +108,7 @@ def extract_query_logs(directory):
         ]
         logger.info(f"Filtered query count: {len(query_history)}")
 
-        output_parquet = f"{csv_output_dir}/query_history_output.parquet"
+        output_parquet = f"{parquet_output_dir}/query_history_output.parquet"
         save_query_history_to_parquet(query_history, output_parquet)
 
     def save_query_history_to_parquet(query_history, output_parquet):
