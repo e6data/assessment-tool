@@ -247,16 +247,14 @@ def run_hourly_query_history(outdir: str):
         if data:
             df = pd.DataFrame(data, columns=cols)
 
-            # Add a partition column for storage (based on the current hour)
             partition_str = current.strftime('%Y%m%d_%H')
             df["hour_partition"] = partition_str
 
-            # Write to partitioned Parquet directory
             df.to_parquet(
                 os.path.join(outdir, "query_history"),
                 partition_cols=["hour_partition"],
                 index=False,
-                engine="pyarrow",  # or "fastparquet"
+                engine="pyarrow",
                 compression='snappy',
             )
 
