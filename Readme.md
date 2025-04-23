@@ -32,7 +32,7 @@ Set environment variables pertaining to your databricks configurations (host, ac
 > export QUERY_LOG_END='YYYY-MM-DD' (Example 2024-10-15) \
 > export EXPORT_METADATA=<True/False>
 
-(If EXPORT_METADATA False it will only extract warehouse events and query history) 
+(If EXPORT_METADATA is False tool will only extract warehouse events and query history) 
 
 To run the assessment script :
 > python3 clients/main.py databricks
