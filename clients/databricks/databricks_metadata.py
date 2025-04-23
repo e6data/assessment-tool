@@ -61,7 +61,7 @@ def extract_metadata(directory):
     }
 
     queries = {
-        'billing': f"""
+        'usage': f"""
             WITH cte AS (
               SELECT u.*
               FROM system.billing.usage u
