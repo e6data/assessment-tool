@@ -44,7 +44,7 @@ def extractor(engine_type):
         except Exception as e:
             logger.error(f"Error during metadata extraction: {str(e)}")
     module = dynamic_import(engine_type, 'querylogs')
-    if module:
+    if module and engine_type != 'databricks':
         logger.info(f"Running {engine_type.capitalize()} Query Log extractor...")
         try:
             module.extract_query_logs(output_dir)
