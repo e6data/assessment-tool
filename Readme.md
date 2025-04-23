@@ -14,6 +14,10 @@ Pre Assessment Requirements:
 - Databricks Permission to view system.information_schema
 - Python 3.9 or above
 - Pandas, Databricks SQL Python connector
+- Systems table required in systems catalog:
+  - Query History table
+  - Warehouse Events table 
+  - Metadata tables (tables, columns, views)
 
 
 > pip install pandas \
@@ -21,12 +25,14 @@ Pre Assessment Requirements:
 
 Set environment variables pertaining to your databricks configurations (host, access_token, warehouse_id, etc.)
 
-
 > export DBR_HOST=<databricks_host> \
-> export DBR_WAREHOUSE_ID=<warehouse_id> \
+> export DBR_WAREHOUSE_HTTP=<warehouse_http_path> \
 > export DBR_ACCESS_TOKEN=<databrciks_token> \
 > export QUERY_LOG_START='YYYY-MM-DD' (Example 2024-10-11) \
-> export QUERY_LOG_END='YYYY-MM-DD' (Example 2024-10-15)
+> export QUERY_LOG_END='YYYY-MM-DD' (Example 2024-10-15) \
+> export EXPORT_METADATA=<True/False>
+
+(If EXPORT_METADATA is False tool will only extract warehouse events and query history) 
 
 To run the assessment script :
 > python3 clients/main.py databricks
