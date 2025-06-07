@@ -37,7 +37,7 @@ def extractor(engine_type):
     os.makedirs(output_dir, exist_ok=True)
     logger.info(f"Directory created : {output_dir}")
     module = dynamic_import(engine_type, 'metadata')
-    if module:
+    if module and engine_type != 'athena':
         logger.info(f"Running {engine_type.capitalize()} Metadata extractor...")
         try:
             module.extract_metadata(output_dir)

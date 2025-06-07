@@ -150,7 +150,30 @@ Set environment variables pertaining to your MSSQL server configurations (server
 To run the assessment script :
 
 > python3 clients/main.py mssql
->
+
+#### Athena 
+Pre Assessment Requirements:
+
+- Python 3.9 or above
+- Pandas, Boto3 
+
+
+> pip install pandas \
+> pip install boto3
+
+
+Set environment variables pertaining to your aws athena configurations
+
+>export AWS_REGION=<aws_region> \
+>export AWS_ACCESS_KEY_ID=<aws_access_key> \
+>export AWS_SECRET_ACCESS_KEY=<aws_secret_access_key> \
+>export AWS_SESSION_TOKEN=<AWS_SESSION_TOKEN> \
+> export QUERY_LOG_START='YYYY-MM-DD' \
+> export QUERY_LOG_END='YYYY-MM-DD'
+
+To run the assessment script :
+
+> python3 clients/main.py athena
 ```
 Two directories named <client>-metadata for Metadata and <client>-query-logs for Query Logs will be generated with the help of above script.
 ```
