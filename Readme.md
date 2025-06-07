@@ -173,7 +173,7 @@ Set environment variables pertaining to your aws athena configurations
 
 To run the assessment script :
 
-> python3 clients/main.py starburst
+> python3 clients/main.py athena
 ```
 Two directories named <client>-metadata for Metadata and <client>-query-logs for Query Logs will be generated with the help of above script.
 ```
