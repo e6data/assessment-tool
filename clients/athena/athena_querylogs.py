@@ -92,7 +92,6 @@ def process_batch(execution_ids, records, start_date, end_date, batch_counter):
 
 def save_results(records, output_dir):
     if records:
-        # Create directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
 
         df = pd.concat(records, ignore_index=True)
@@ -100,19 +99,11 @@ def save_results(records, output_dir):
         for col in datetime_cols:
             df[col] = df[col].apply(lambda x: x.isoformat() if not pd.isna(x) else '')
 
-        # Build full output path
         output_path = os.path.join(output_dir, OUTPUT_FILE)
         df.to_csv(output_path, index=False)
         print(f"Saved {len(df)} records to {output_path}")
     else:
         print("No records to save")
-
-
-# def extract_query_logs(directory):
-#     start_date_query = datetime(2025, 5, 1, tzinfo=timezone.utc).replace(tzinfo=None)
-#     end_date_query = datetime(2025, 5, 20, tzinfo=timezone.utc).replace(tzinfo=None)
-#
-#     fetch_and_flatten(start_date_query, end_date_query, directory)
 
 
 def extract_query_logs(directory):
