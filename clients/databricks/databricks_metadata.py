@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import os
 import time
 import logging
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -130,7 +132,21 @@ def extract_metadata(directory):
                 df['last_altered'] = df['last_altered'].astype(str)
 
             path = os.path.join(output_dir, f"{name}.parquet")
-            df.to_parquet(path, index=False)
+
+            for col in df.select_dtypes(include=["datetimetz"]).columns:
+                df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
+
+            for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+                df[col] = df[col].dt.round("ms")
+
+            table = pa.Table.from_pandas(df, preserve_index=False)
+
+            pq.write_table(
+                table,
+                path,
+                coerce_timestamps='ms'
+            )
+
             logger.info(f"Wrote {len(df)} rows to {path}")
         except Exception as e:
             logger.error(f"Error in {name}: {e}")
@@ -163,11 +179,21 @@ def extract_metadata(directory):
             if data:
                 df = pd.DataFrame(data, columns=cols)
 
+                for col in df.select_dtypes(include=["datetimetz"]).columns:
+                    df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
+
+                for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+                    df[col] = df[col].dt.round("ms")
+
+                table = pa.Table.from_pandas(df, preserve_index=False)
                 filename = f"query_history_{current.strftime('%Y%m%d_%H')}.parquet"
-                df.to_parquet(
+
+                pq.write_table(
+                    table,
                     os.path.join(outdir, filename),
-                    index=False
+                    coerce_timestamps='ms'
                 )
+
             current = next_hour
 
     run_hourly_query_history(output_dir)
