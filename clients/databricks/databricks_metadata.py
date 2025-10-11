@@ -65,13 +65,13 @@ def extract_metadata(directory):
     queries = {
         'usage': f"""
             WITH cte AS (
-              SELECT u.*
+              SELECT u.*, w.warehouse_name
               FROM system.billing.usage u
               JOIN (
-                SELECT DISTINCT account_id,workspace_id,warehouse_id,warehouse_name
+                SELECT DISTINCT account_id as w_account_id ,workspace_id,warehouse_id,warehouse_name
                 FROM system.compute.warehouses
               ) w
-                ON u.account_id = w.account_id
+                ON u.account_id = w.w_account_id
                AND u.workspace_id = w.workspace_id
                AND u.usage_metadata.warehouse_id = w.warehouse_id
              WHERE billing_origin_product = 'SQL'
@@ -92,6 +92,7 @@ def extract_metadata(directory):
              WHERE p.currency_code = 'USD'
             )
             SELECT * FROM cte1
+            where account_id is not null
             ORDER BY usage_start_time;
         """,
         'event': f"""
@@ -111,9 +112,10 @@ def extract_metadata(directory):
              ORDER BY ev.event_time DESC;
         """,
         'warehouse_info': f"""
-            SELECT *
-              FROM system.compute.warehouses
-             WHERE DATE(change_time) BETWEEN '{start_date_str}' AND '{end_date_str}';
+            select * except (rn) from (
+                SELECT *,row_number() over (partition by warehouse_id ,workspace_id, account_id, warehouse_name order by change_time desc) as rn
+                    FROM system.compute.warehouses) 
+            where rn=1;   
         """,
 
     }
