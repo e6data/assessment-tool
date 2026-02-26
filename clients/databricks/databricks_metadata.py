@@ -5,6 +5,7 @@ import os
 import time
 import logging
 import pyarrow as pa
+from deltalake import write_deltalake 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -219,10 +220,6 @@ def extract_metadata(directory):
         return df
 
     def run_hourly_query_history_sql(outdir):
-        try:
-            from deltalake import write_deltalake  # type: ignore
-        except Exception as e:
-            raise RuntimeError("deltalake is required for Databricks query-history export. Install with: pip install deltalake") from e
 
         qh_delta_path = os.path.join(outdir, "query_history_delta")
         delta_exists = os.path.exists(os.path.join(qh_delta_path, "_delta_log"))

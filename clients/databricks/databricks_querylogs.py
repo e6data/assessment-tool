@@ -5,6 +5,8 @@ import requests
 import time
 import logging
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -157,8 +159,21 @@ def extract_query_logs(directory):
             })
 
         df = pd.DataFrame(data)
+        for col in df.select_dtypes(include=["datetimetz"]).columns:
+            df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
 
-        df.to_parquet(output_parquet, index=False)
+        for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+            df[col] = df[col].dt.round("ms")
+
+        table = pa.Table.from_pandas(df, preserve_index=False)
+
+        pq.write_table(
+            table,
+            output_parquet,
+            coerce_timestamps='ms'
+        )
+
+        df.to_parquet(output_parquet, engine='fastparquet', index=False)
         logger.info(f"Query history exported to {output_parquet}")
 
     def fetch_query_history_by_date(start_date_str, end_date_str):

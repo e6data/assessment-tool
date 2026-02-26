@@ -33,8 +33,9 @@ Pre Assessment Requirements:
 
 
 > pip install pandas \
-> pip install databricks-sql-connector
-> pip install deltalake
+> pip install pyarrow \
+> pip install databricks-sql-connector \
+> pip install delta-lake
 
 Set environment variables pertaining to your databricks configurations (host, access_token, warehouse_id, etc.)
 
