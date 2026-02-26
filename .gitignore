@@ -2,3 +2,17 @@
 .DS_Store
 __pycache__/
 *.py[cod]
+
+# Local test/debug artifacts
+.idea/
+clients/databricks-test.py
+context.md
+databricks-logs.zip
+databricks-logs/
+delta/
+metadata/
+qh2_delta/
+qh3_delta/
+snowflake-logs.zip
+starburst-logs.zip
+trino_client-logs.zip
