@@ -5,7 +5,7 @@ import os
 import time
 import logging
 import pyarrow as pa
-import pyarrow.parquet as pq
+from deltalake import write_deltalake 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -134,21 +134,7 @@ def extract_metadata(directory):
                 df['last_altered'] = df['last_altered'].astype(str)
 
             path = os.path.join(output_dir, f"{name}.parquet")
-
-            for col in df.select_dtypes(include=["datetimetz"]).columns:
-                df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
-
-            for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
-                df[col] = df[col].dt.round("ms")
-
-            table = pa.Table.from_pandas(df, preserve_index=False)
-
-            pq.write_table(
-                table,
-                path,
-                coerce_timestamps='ms'
-            )
-
+            df.to_parquet(path, index=False)
             logger.info(f"Wrote {len(df)} rows to {path}")
         except Exception as e:
             logger.error(f"Error in {name}: {e}")
@@ -161,17 +147,94 @@ def extract_metadata(directory):
         run_query_and_save(q, name)
 
     # hourly query history
-    def run_hourly_query_history(outdir):
+    def build_query_history_sql(st, et):
+        return (
+            f"SELECT "
+            f"  account_id, "
+            f"  CAST(workspace_id AS STRING) AS workspace_id, "
+            f"  statement_id, "
+            f"  executed_by, "
+            f"  session_id, "
+            f"  execution_status, "
+            f"  CAST(compute AS STRING) AS compute, "
+            f"  CAST(executed_by_user_id AS STRING) AS executed_by_user_id, "
+            f"  statement_text, "
+            f"  statement_type, "
+            f"  CAST(error_message AS STRING) AS error_message, "
+            f"  client_application, "
+            f"  CAST(client_driver AS STRING) AS client_driver, "
+            f"  total_duration_ms, "
+            f"  waiting_for_compute_duration_ms, "
+            f"  CAST(waiting_at_capacity_duration_ms AS DOUBLE) AS waiting_at_capacity_duration_ms, "
+            f"  CAST(execution_duration_ms AS DOUBLE) AS execution_duration_ms, "
+            f"  compilation_duration_ms, "
+            f"  total_task_duration_ms, "
+            f"  result_fetch_duration_ms, "
+            f"  CAST(query_source AS STRING) AS query_source, "
+            f"  CAST(executed_as_user_id AS STRING) AS executed_as_user_id, "
+            f"  executed_as, "
+            f"  written_rows, "
+            f"  written_files, "
+            f"  cache_origin_statement_id, "
+            f"  CAST(query_parameters AS STRING) AS query_parameters, "
+            f"  CAST(query_tags AS STRING) AS query_tags, "
+            f"  pruned_files_bytes, "
+            f"  read_files_bytes, "
+            f"  date_trunc('millisecond', start_time) AS start_time_ms, "
+            f"  date_trunc('millisecond', end_time) AS end_time_ms, "
+            f"  date_trunc('millisecond', update_time) AS update_time_ms "
+            f"FROM system.query.history "
+            f"WHERE start_time >= TIMESTAMP '{st}' "
+            f"  AND start_time < TIMESTAMP '{et}'"
+        )
+
+    def normalize_query_history_df(df):
+        string_cols = [
+            "account_id", "workspace_id", "statement_id", "executed_by", "session_id",
+            "execution_status", "compute", "executed_by_user_id", "statement_text",
+            "statement_type", "error_message", "client_application", "client_driver",
+            "query_source", "executed_as_user_id", "executed_as",
+            "cache_origin_statement_id", "query_parameters", "query_tags"
+        ]
+        numeric_cols = [
+            "total_duration_ms", "waiting_for_compute_duration_ms",
+            "waiting_at_capacity_duration_ms", "execution_duration_ms",
+            "compilation_duration_ms", "total_task_duration_ms",
+            "result_fetch_duration_ms", "written_rows", "written_files",
+            "pruned_files_bytes", "read_files_bytes"
+        ]
+        ts_cols = ["start_time_ms", "end_time_ms", "update_time_ms"]
+
+        for col in string_cols:
+            if col in df.columns:
+                df[col] = df[col].astype("string")
+
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        for col in ts_cols:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+
+        return df
+
+    def run_hourly_query_history_sql(outdir):
+
+        qh_delta_path = os.path.join(outdir, "query_history_delta")
+        delta_exists = os.path.exists(os.path.join(qh_delta_path, "_delta_log"))
+        first_delta_mode = "append" if delta_exists else "overwrite"
+        delta_parent = os.path.dirname(qh_delta_path)
+        if delta_parent:
+            os.makedirs(delta_parent, exist_ok=True)
+
+        first_delta_write = True
         current = start_date
         while current < end_date:
             next_hour = current + timedelta(hours=1)
             st = current.strftime('%Y-%m-%d %H:%M:%S')
             et = next_hour.strftime('%Y-%m-%d %H:%M:%S')
-            query = (
-                f"SELECT * FROM system.query.history"
-                f" WHERE start_time >= TIMESTAMP '{st}'"
-                f"   AND start_time <  TIMESTAMP '{et}'"
-            )
+            query = build_query_history_sql(st, et)
             logger.info(f"Querying history from {st} to {et}")
             with conn.cursor() as cur:
                 cur.execute(query)
@@ -180,24 +243,21 @@ def extract_metadata(directory):
 
             if data:
                 df = pd.DataFrame(data, columns=cols)
+                df = normalize_query_history_df(df)
 
-                for col in df.select_dtypes(include=["datetimetz"]).columns:
-                    df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
-
-                for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
-                    df[col] = df[col].dt.round("ms")
-
-                table = pa.Table.from_pandas(df, preserve_index=False)
-                filename = f"query_history_{current.strftime('%Y%m%d_%H')}.parquet"
-
-                pq.write_table(
-                    table,
-                    os.path.join(outdir, filename),
-                    coerce_timestamps='ms'
+                table = pa.Table.from_pandas(
+                    df,
+                    preserve_index=False
                 )
+
+                mode = first_delta_mode if first_delta_write else "append"
+                write_deltalake(qh_delta_path, table, mode=mode)
+                first_delta_write = False
+                logger.info(f"Wrote {len(df)} rows to delta: {qh_delta_path} (mode={mode})")
 
             current = next_hour
 
-    run_hourly_query_history(output_dir)
+    run_hourly_query_history_sql(output_dir)
+
     conn.close()
     logger.info("Databricks metadata extraction completed.")

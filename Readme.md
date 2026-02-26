@@ -7,6 +7,18 @@ Query Logs: query text, query plan, query metrics ( execution time, planning tim
 ```
 ### Steps to Run the Script:
 
+### Install Per-Client Dependencies
+
+Use the matching requirements file for the client you want to run:
+
+> pip install -r clients/databricks/requirements.txt  
+> pip install -r clients/snowflake/requirements.txt  
+> pip install -r clients/trino_client/requirements.txt  
+> pip install -r clients/starburst/requirements.txt  
+> pip install -r clients/mssql/requirements.txt  
+> pip install -r clients/athena/requirements.txt  
+> pip install -r clients/redshift/requirements.txt
+
 #### Databricks
 
 Pre Assessment Requirements:
@@ -22,7 +34,8 @@ Pre Assessment Requirements:
 
 > pip install pandas \
 > pip install pyarrow \
-> pip install databricks-sql-connector 
+> pip install databricks-sql-connector \
+> pip install delta-lake
 
 Set environment variables pertaining to your databricks configurations (host, access_token, warehouse_id, etc.)
 
@@ -35,8 +48,11 @@ Set environment variables pertaining to your databricks configurations (host, ac
 
 (If EXPORT_METADATA is False tool will only extract warehouse events and query history) 
 
+Query history is always written in Delta format at `<output_dir>/query_history_delta`.
+
 To run the assessment script :
 > python3 clients/main.py databricks
+> python3 clients/main.py databricks --install-deps
 
 
 #### Snowflake
@@ -62,6 +78,7 @@ Set environment variables pertaining to your snowflake configurations (host, war
 To run the assessment script :
 
 > python3 clients/main.py snowflake
+> python3 clients/main.py snowflake --install-deps
 
 
 #### Trino
@@ -95,6 +112,7 @@ Set environment variables pertaining to your trino configurations (host, passwor
 
 To run the assessment script :
 > python3 clients/main.py trino_client
+> python3 clients/main.py trino_client --install-deps
 
 #### Starburst 
 Pre Assessment Requirements:
@@ -125,6 +143,7 @@ Set `COLUMN_STATS=true` to extract both schema and column statistics, or `COLUMN
 To run the assessment script :
 
 > python3 clients/main.py starburst
+> python3 clients/main.py starburst --install-deps
 
 #### MSSQL Server
 Pre Assessment Requirements:
@@ -151,6 +170,7 @@ Set environment variables pertaining to your MSSQL server configurations (server
 To run the assessment script :
 
 > python3 clients/main.py mssql
+> python3 clients/main.py mssql --install-deps
 
 #### Athena 
 Pre Assessment Requirements:
@@ -175,6 +195,7 @@ Set environment variables pertaining to your aws athena configurations
 To run the assessment script :
 
 > python3 clients/main.py athena
+> python3 clients/main.py athena --install-deps
 ```
 Two directories named <client>-metadata for Metadata and <client>-query-logs for Query Logs will be generated with the help of above script.
 ```

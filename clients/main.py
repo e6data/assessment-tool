@@ -3,6 +3,8 @@ import importlib
 import argparse
 import os
 import shutil
+import subprocess
+import sys
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,8 +33,28 @@ def dynamic_import(engine_type, extraction):
         return None
 
 
-def extractor(engine_type):
+def install_client_dependencies(engine_type):
+    requirements_path = os.path.join(
+        os.path.dirname(__file__),
+        engine_type,
+        "requirements.txt"
+    )
+    if not os.path.exists(requirements_path):
+        logger.warning(f"No requirements file found for {engine_type}: {requirements_path}")
+        return
+
+    logger.info(f"Installing dependencies from {requirements_path}")
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-r", requirements_path],
+        check=True
+    )
+
+
+def extractor(engine_type, install_deps=False):
     logger.info(f"Starting extractor for engine: {engine_type}")
+    if install_deps:
+        install_client_dependencies(engine_type)
+
     output_dir = f"{engine_type}-logs"
     os.makedirs(output_dir, exist_ok=True)
     logger.info(f"Directory created : {output_dir}")
@@ -58,9 +80,14 @@ def extractor(engine_type):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('engine_type', type=str)
+    parser.add_argument(
+        '--install-deps',
+        action='store_true',
+        help='Install clients/<engine_type>/requirements.txt before extraction'
+    )
 
     args = parser.parse_args()
     logger.info(f"Starting extractor script with client: {args.engine_type}")
 
-    extractor(args.engine_type)
+    extractor(args.engine_type, install_deps=args.install_deps)
     logger.info("Extractor script completed.")
