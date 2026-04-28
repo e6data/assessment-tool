@@ -51,13 +51,36 @@ Pre Assessment Requirements:
 
 
 Set environment variables pertaining to your snowflake configurations (host, warehouse, role, user, password, etc.)
-> export SNOWFLAKE_HOST=<snowflake_host> \
+> export SNOWFLAKE_ACCOUNT_IDENTIFIER=<snowflake_account_identifier> \
 > export SNOWFLAKE_WAREHOUSE=<warehouse_name> \
 > export SNOWFLAKE_ROLE='ACCOUNTADMIN' \
 > export SNOWFLAKE_USER=<snowflake_username> \
-> export SNOWFLAKE_PASSWORD=<snowflake_password> \
 > export QUERY_LOG_START='YYYY-MM-DD' \
 > export QUERY_LOG_END='YYYY-MM-DD'
+
+Authenticate using **either** password or key-pair authentication. Set `SNOWFLAKE_AUTH_TYPE` to choose the method:
+
+Password authentication:
+> export SNOWFLAKE_AUTH_TYPE=USERNAME_PASSWORD \
+> export SNOWFLAKE_PASSWORD=<snowflake_password>
+
+Key-pair authentication:
+> export SNOWFLAKE_AUTH_TYPE=KEY_PAIR \
+> export SNOWFLAKE_PRIVATE_KEY_PATH=<path_to_private_key_file>
+
+If the private key is **unencrypted**, leave both `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE` and `SNOWFLAKE_PASSPHRASE_INPUT_FORMAT` empty or unset — no further configuration is needed.
+
+If the private key is **encrypted**, you must provide the passphrase. Choose one of the two methods below by setting `SNOWFLAKE_PASSPHRASE_INPUT_FORMAT`:
+
+- **`STRING`** (default) — pass the passphrase directly as the env var value:
+  > export SNOWFLAKE_PASSPHRASE_INPUT_FORMAT=STRING \
+  > export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=<your_passphrase>
+
+- **`TEXT_FILE`** — store the passphrase in a plain-text file and pass the file path:
+  > export SNOWFLAKE_PASSPHRASE_INPUT_FORMAT=TEXT_FILE \
+  > export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=<path_to_passphrase_file>
+
+  The file must contain only the passphrase (no RTF, no BOM). Surrounding whitespace and trailing newlines are trimmed automatically.
 
 To run the assessment script :
 
