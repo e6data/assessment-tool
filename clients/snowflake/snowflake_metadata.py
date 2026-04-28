@@ -24,12 +24,17 @@ def run_query_and_save_to_csv(cursor, query, csv_filename, csv_output_dir):
 
 
 def extract_metadata(directory):
-    host = os.environ.get('SNOWFLAKE_HOST')
+    host = os.environ.get('SNOWFLAKE_ACCOUNT_IDENTIFIER')
     warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
     user = os.environ.get('SNOWFLAKE_USER')
+    auth_type = os.environ.get('SNOWFLAKE_AUTH_TYPE')
     password = os.environ.get('SNOWFLAKE_PASSWORD')
     private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
     private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') or None
+    passphrase_input_format = os.environ.get('SNOWFLAKE_PASSPHRASE_INPUT_FORMAT') or 'STRING'
+    if private_key_passphrase and passphrase_input_format == 'TEXT_FILE':
+        with open(private_key_passphrase) as f:
+            private_key_passphrase = f.read().strip()
     role = os.environ.get('SNOWFLAKE_ROLE')
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
@@ -39,7 +44,7 @@ def extract_metadata(directory):
     os.makedirs(csv_output_dir, exist_ok=True)
     try:
         logger.info("Creating connection with Snowflake")
-        if password:
+        if auth_type == 'USERNAME_PASSWORD':
             conn = snowflake.connector.connect(
                 user=user,
                 password=password,
@@ -48,7 +53,7 @@ def extract_metadata(directory):
                 database=database,
                 schema=schema
             )
-        else:
+        elif auth_type == 'KEY_PAIR':
             conn = snowflake.connector.connect(
                 user=user,
                 private_key_file=private_key,
@@ -57,6 +62,11 @@ def extract_metadata(directory):
                 warehouse=warehouse,
                 database=database,
                 schema=schema
+            )
+        else:
+            raise ValueError(
+                f"Invalid SNOWFLAKE_AUTH_TYPE: {auth_type!r}. "
+                "Must be 'USERNAME_PASSWORD' or 'KEY_PAIR'."
             )
 
         queries = {

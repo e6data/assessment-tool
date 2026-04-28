@@ -8,13 +8,18 @@ logger = logging.getLogger(__name__)
 
 
 def extract_query_logs(directory):
-    host = os.environ.get('SNOWFLAKE_HOST')
+    host = os.environ.get('SNOWFLAKE_ACCOUNT_IDENTIFIER')
     user = os.environ.get('SNOWFLAKE_USER')
     role = os.environ.get('SNOWFLAKE_ROLE')
     warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
+    auth_type = os.environ.get('SNOWFLAKE_AUTH_TYPE')
     password = os.environ.get('SNOWFLAKE_PASSWORD')
     private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
     private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') or None
+    passphrase_input_format = os.environ.get('SNOWFLAKE_PASSPHRASE_INPUT_FORMAT') or 'STRING'
+    if private_key_passphrase and passphrase_input_format == 'TEXT_FILE':
+        with open(private_key_passphrase) as f:
+            private_key_passphrase = f.read().strip()
     database = 'SNOWFLAKE'
     schema = 'ACCOUNT_USAGE'
     query_log_start = os.environ.get('QUERY_LOG_START')
@@ -24,7 +29,7 @@ def extract_query_logs(directory):
 
     try:
         logger.info("Creating connection with Snowflake")
-        if password:
+        if auth_type == 'USERNAME_PASSWORD':
             conn = snowflake.connector.connect(
                 user=user,
                 password=password,
@@ -33,7 +38,7 @@ def extract_query_logs(directory):
                 database=database,
                 schema=schema
             )
-        else:
+        elif auth_type == 'KEY_PAIR':
             conn = snowflake.connector.connect(
                 user=user,
                 private_key_file=private_key,
@@ -42,6 +47,11 @@ def extract_query_logs(directory):
                 warehouse=warehouse,
                 database=database,
                 schema=schema
+            )
+        else:
+            raise ValueError(
+                f"Invalid SNOWFLAKE_AUTH_TYPE: {auth_type!r}. "
+                "Must be 'USERNAME_PASSWORD' or 'KEY_PAIR'."
             )
         cursor = conn.cursor()
         logger.info("Connected to snowflake")
