@@ -66,9 +66,21 @@ Password authentication:
 
 Key-pair authentication:
 > export SNOWFLAKE_AUTH_TYPE=KEY_PAIR \
-> export SNOWFLAKE_PRIVATE_KEY_PATH=<path_to_private_key_file> \
-> export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=<passphrase_or_path_to_passphrase_file>  # optional, only if the private key is encrypted; leave empty or unset if the key is unencrypted \
-> export SNOWFLAKE_PASSPHRASE_INPUT_FORMAT=<STRING_or_TEXT_FILE>  # STRING (default): SNOWFLAKE_PRIVATE_KEY_PASSPHRASE is the literal passphrase. TEXT_FILE: SNOWFLAKE_PRIVATE_KEY_PASSPHRASE is a path to a text file containing the passphrase
+> export SNOWFLAKE_PRIVATE_KEY_PATH=<path_to_private_key_file>
+
+If the private key is **unencrypted**, leave both `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE` and `SNOWFLAKE_PASSPHRASE_INPUT_FORMAT` empty or unset — no further configuration is needed.
+
+If the private key is **encrypted**, you must provide the passphrase. Choose one of the two methods below by setting `SNOWFLAKE_PASSPHRASE_INPUT_FORMAT`:
+
+- **`STRING`** (default) — pass the passphrase directly as the env var value:
+  > export SNOWFLAKE_PASSPHRASE_INPUT_FORMAT=STRING \
+  > export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=<your_passphrase>
+
+- **`TEXT_FILE`** — store the passphrase in a plain-text file and pass the file path:
+  > export SNOWFLAKE_PASSPHRASE_INPUT_FORMAT=TEXT_FILE \
+  > export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=<path_to_passphrase_file>
+
+  The file must contain only the passphrase (no RTF, no BOM). Surrounding whitespace and trailing newlines are trimmed automatically.
 
 To run the assessment script :
 
