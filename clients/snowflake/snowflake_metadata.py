@@ -57,8 +57,8 @@ def extract_metadata(directory):
                         argument_signature FROM SNOWFLAKE.ACCOUNT_USAGE.FUNCTIONS WHERE DELETED IS NULL""",
             'warehouse': """SHOW WAREHOUSES""",
             'warehouse_usage': f"""SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
-                                    WHERE DATE(start_time) <= date('{query_log_start}')
-                                    AND DATE(start_time) >= date('{query_log_end}') """
+                                    WHERE DATE(start_time) between date('{query_log_start}')
+                                    AND date('{query_log_end}') """
         }
 
         cursor = conn.cursor()
