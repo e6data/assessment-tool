@@ -55,9 +55,17 @@ Set environment variables pertaining to your snowflake configurations (host, war
 > export SNOWFLAKE_WAREHOUSE=<warehouse_name> \
 > export SNOWFLAKE_ROLE='ACCOUNTADMIN' \
 > export SNOWFLAKE_USER=<snowflake_username> \
-> export SNOWFLAKE_PASSWORD=<snowflake_password> \
 > export QUERY_LOG_START='YYYY-MM-DD' \
 > export QUERY_LOG_END='YYYY-MM-DD'
+
+Authenticate using **either** password or key-pair authentication:
+
+Password authentication:
+> export SNOWFLAKE_PASSWORD=<snowflake_password>
+
+Key-pair authentication (set `SNOWFLAKE_PASSWORD` is not needed):
+> export SNOWFLAKE_PRIVATE_KEY_PATH=<path_to_private_key_file> \
+> export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=<passphrase>  # optional, only if the private key is encrypted
 
 To run the assessment script :
 

@@ -28,6 +28,8 @@ def extract_metadata(directory):
     warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
     user = os.environ.get('SNOWFLAKE_USER')
     password = os.environ.get('SNOWFLAKE_PASSWORD')
+    private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
+    private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE')
     role = os.environ.get('SNOWFLAKE_ROLE')
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
@@ -37,14 +39,25 @@ def extract_metadata(directory):
     os.makedirs(csv_output_dir, exist_ok=True)
     try:
         logger.info("Creating connection with Snowflake")
-        conn = snowflake.connector.connect(
-            user=user,
-            password=password,
-            account=host,
-            warehouse=warehouse,
-            database=database,
-            schema=schema
-        )
+        if password:
+            conn = snowflake.connector.connect(
+                user=user,
+                password=password,
+                account=host,
+                warehouse=warehouse,
+                database=database,
+                schema=schema
+            )
+        else:
+            conn = snowflake.connector.connect(
+                user=user,
+                private_key_file=private_key,
+                private_key_file_pwd=private_key_passphrase,
+                account=host,
+                warehouse=warehouse,
+                database=database,
+                schema=schema
+            )
 
         queries = {
             'tables': """SELECT a.table_catalog, a.table_schema, a.table_name, a.table_type, a.row_count, a.bytes, 
