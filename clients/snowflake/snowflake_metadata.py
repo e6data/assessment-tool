@@ -29,7 +29,7 @@ def extract_metadata(directory):
     user = os.environ.get('SNOWFLAKE_USER')
     password = os.environ.get('SNOWFLAKE_PASSWORD')
     private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
-    private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE')
+    private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') or None
     role = os.environ.get('SNOWFLAKE_ROLE')
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')

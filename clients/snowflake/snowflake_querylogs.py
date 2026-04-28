@@ -13,6 +13,8 @@ def extract_query_logs(directory):
     role = os.environ.get('SNOWFLAKE_ROLE')
     warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
     password = os.environ.get('SNOWFLAKE_PASSWORD')
+    private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
+    private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') or None
     database = 'SNOWFLAKE'
     schema = 'ACCOUNT_USAGE'
     query_log_start = os.environ.get('QUERY_LOG_START')
@@ -22,14 +24,25 @@ def extract_query_logs(directory):
 
     try:
         logger.info("Creating connection with Snowflake")
-        conn = snowflake.connector.connect(
-            user=user,
-            password=password,
-            account=host,
-            warehouse=warehouse,
-            database=database,
-            schema=schema
-        )
+        if password:
+            conn = snowflake.connector.connect(
+                user=user,
+                password=password,
+                account=host,
+                warehouse=warehouse,
+                database=database,
+                schema=schema
+            )
+        else:
+            conn = snowflake.connector.connect(
+                user=user,
+                private_key_file=private_key,
+                private_key_file_pwd=private_key_passphrase,
+                account=host,
+                warehouse=warehouse,
+                database=database,
+                schema=schema
+            )
         cursor = conn.cursor()
         logger.info("Connected to snowflake")
         cursor.execute(f"USE ROLE {role};")
