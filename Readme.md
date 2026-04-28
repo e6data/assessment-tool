@@ -44,10 +44,10 @@ Pre Assessment Requirements:
 
 - Snowflake role to view query history and information schema (ACCOUNT_ADMIN preferred)
 - Python 3.9 or above
-- Pandas, Snowflake SQL Python connector
+- Pandas, Snowflake SQL Python connector 
 
 > pip install pandas \
-> pip install snowflake-connector-python
+> pip install snowflake-connector-python==3.17.3
 
 
 Set environment variables pertaining to your snowflake configurations (host, warehouse, role, user, password, etc.)
