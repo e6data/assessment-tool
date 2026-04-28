@@ -89,6 +89,8 @@ def extract_metadata(directory):
               LEFT JOIN cte
                 ON cte.sku_name = p.sku_name
                AND cte.usage_unit = p.usage_unit
+               AND cte.usage_end_time >= p.price_start_time
+               AND (p.price_end_time IS NULL OR cte.usage_end_time < p.price_end_time)
              WHERE p.currency_code = 'USD'
             )
             SELECT * FROM cte1
