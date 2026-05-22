@@ -1,100 +1,103 @@
-import snowflake.connector
-from datetime import datetime
-import pandas as pd
 import os
 import logging
+from datetime import datetime
+
+import pandas as pd
+
+from snowflake.snowflake_common import (
+    connect_with_retry,
+    use_role,
+    close_quietly,
+    write_parquet,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def extract_query_logs(directory):
-    host = os.environ.get('SNOWFLAKE_ACCOUNT_IDENTIFIER')
-    user = os.environ.get('SNOWFLAKE_USER')
     role = os.environ.get('SNOWFLAKE_ROLE')
-    warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
-    auth_type = os.environ.get('SNOWFLAKE_AUTH_TYPE')
-    password = os.environ.get('SNOWFLAKE_PASSWORD')
-    private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
-    private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') or None
-    passphrase_input_format = os.environ.get('SNOWFLAKE_PASSPHRASE_INPUT_FORMAT') or 'STRING'
-    if private_key_passphrase and passphrase_input_format == 'TEXT_FILE':
-        with open(private_key_passphrase) as f:
-            private_key_passphrase = f.read().strip()
-    database = 'SNOWFLAKE'
-    schema = 'ACCOUNT_USAGE'
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
-    csv_output_dir = directory
-    os.makedirs(csv_output_dir, exist_ok=True)
+    os.makedirs(directory, exist_ok=True)
 
+    start_date = datetime.strptime(query_log_start, '%Y-%m-%d')
+    end_date = datetime.strptime(query_log_end, '%Y-%m-%d')
+    start_timestamp = start_date.strftime('%Y-%m-%dT00:00:00Z')
+    end_timestamp = end_date.strftime('%Y-%m-%dT23:59:59Z')
+
+    conn = None
+    cursor = None
     try:
-        logger.info("Creating connection with Snowflake")
-        if auth_type == 'USERNAME_PASSWORD':
-            conn = snowflake.connector.connect(
-                user=user,
-                password=password,
-                account=host,
-                warehouse=warehouse,
-                database=database,
-                schema=schema
-            )
-        elif auth_type == 'KEY_PAIR':
-            conn = snowflake.connector.connect(
-                user=user,
-                private_key_file=private_key,
-                private_key_file_pwd=private_key_passphrase,
-                account=host,
-                warehouse=warehouse,
-                database=database,
-                schema=schema
-            )
-        else:
-            raise ValueError(
-                f"Invalid SNOWFLAKE_AUTH_TYPE: {auth_type!r}. "
-                "Must be 'USERNAME_PASSWORD' or 'KEY_PAIR'."
-            )
+        conn = connect_with_retry()
         cursor = conn.cursor()
-        logger.info("Connected to snowflake")
-        cursor.execute(f"USE ROLE {role};")
-        logger.info(f"Using {role} for extracting query logs")
-
-        start_date = datetime.strptime(query_log_start, '%Y-%m-%d')
-        end_date = datetime.strptime(query_log_end, '%Y-%m-%d')
-
-        start_timestamp = start_date.strftime('%Y-%m-%dT00:00:00Z')
-        end_timestamp = end_date.strftime('%Y-%m-%dT23:59:59Z')
+        use_role(cursor, role)
+        logger.info("Using role for extracting query logs")
 
         history_query = f"""
-            SELECT query_id, query_text, database_name, schema_name, query_type, 
-                       user_name, warehouse_size, execution_status, 
-                       error_message, start_time, end_time, bytes_scanned, 
-                       percentage_scanned_from_cache, bytes_written, rows_produced,
-                       partitions_scanned, partitions_total, bytes_spilled_to_local_storage, 
-                       bytes_spilled_to_remote_storage, bytes_sent_over_the_network, 
-                       total_elapsed_time, compilation_time, execution_time, queued_overload_time,
-                       credits_used_cloud_services 
-            FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY 
-            WHERE end_time >= to_timestamp_ltz('{start_timestamp}') 
-            AND end_time <= to_timestamp_ltz('{end_timestamp}') 
+            SELECT reader_account_name, query_id, query_text,
+                       database_id, database_name, schema_id, schema_name, query_type,
+                       session_id, authn_event_id,
+                       user_name, role_name,
+                       warehouse_id, warehouse_name, warehouse_size, warehouse_type,
+                       cluster_number, query_tag, execution_status,
+                       error_code, error_message, start_time, end_time,
+                       total_elapsed_time,
+                       bytes_scanned, percentage_scanned_from_cache,
+                       bytes_written, bytes_written_to_result, bytes_read_from_result,
+                       rows_produced, rows_inserted, rows_updated, rows_deleted,
+                       rows_unloaded, bytes_deleted,
+                       partitions_scanned, partitions_total,
+                       bytes_spilled_to_local_storage, bytes_spilled_to_remote_storage,
+                       bytes_sent_over_the_network,
+                       compilation_time, execution_time,
+                       queued_provisioning_time, queued_repair_time, queued_overload_time,
+                       transaction_blocked_time,
+                       outbound_data_transfer_cloud, outbound_data_transfer_region,
+                       outbound_data_transfer_bytes,
+                       inbound_data_transfer_cloud, inbound_data_transfer_region,
+                       inbound_data_transfer_bytes,
+                       list_external_files_time,
+                       credits_used_cloud_services,
+                       reader_account_deleted_on,
+                       release_version,
+                       external_function_total_invocations,
+                       external_function_total_sent_rows, external_function_total_received_rows,
+                       external_function_total_sent_bytes, external_function_total_received_bytes,
+                       query_load_percent, is_client_generated_statement,
+                       query_acceleration_bytes_scanned, query_acceleration_partitions_scanned,
+                       query_acceleration_upper_limit_scale_factor,
+                       transaction_id, child_queries_wait_time, role_type,
+                       query_hash, query_hash_version,
+                       query_parameterized_hash, query_parameterized_hash_version,
+                       secondary_role_stats,
+                       rows_written_to_result,
+                       query_retry_time, query_retry_cause, fault_handling_time,
+                       user_type,
+                       user_database_name, user_database_id,
+                       user_schema_name, user_schema_id,
+                       bind_values
+            FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+            WHERE end_time >= to_timestamp_ltz('{start_timestamp}')
+            AND end_time <= to_timestamp_ltz('{end_timestamp}')
             AND is_client_generated_statement = FALSE;
         """
-        logger.info(f"Fetching query history it may take few minutes...")
+        logger.info("Fetching query history; this may take a few minutes...")
         cursor.execute(history_query)
         result = cursor.fetchall()
-        if result:
-            columns = [col[0] for col in cursor.description]
-            df = pd.DataFrame(result, columns=columns)
-            df["START_TIME"] = df["START_TIME"].astype(str)
-            df["END_TIME"] = df["END_TIME"].astype(str)
-            logger.info(f"Writing query history into parquet...")
-            parquet_filename = f"{csv_output_dir}/query_history_snowflake_1.parquet"
-            df.to_parquet(parquet_filename, index=False)
-            logger.info(f"Data has been exported to {os.path.basename(parquet_filename)}")
-            logger.info(f"Query Log Successfully Exported to {csv_output_dir}")
-        else:
+
+        if not result:
             logger.info("No queries found for the specified date range.")
-            cursor.close()
-            conn.close()
+            return
+
+        columns = [col[0] for col in cursor.description]
+        df = pd.DataFrame(result, columns=columns)
+        parquet_path = os.path.join(directory, "query_history_snowflake.parquet")
+        logger.info("Writing query history into parquet...")
+        write_parquet(df, parquet_path)
+        logger.info(f"Data has been exported to {os.path.basename(parquet_path)}")
+        logger.info(f"Query Log Successfully Exported to {directory}")
 
     except Exception as e:
-        logger.error(f"Failed to connect with Snowflake: {str(e)}")
+        logger.error(f"Failed during Snowflake query log extraction: {e}")
+    finally:
+        close_quietly(cursor, conn)
