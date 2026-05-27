@@ -1,119 +1,150 @@
-from databricks import sql
-from datetime import datetime, timedelta
 import os
-import requests
 import time
 import logging
+from datetime import datetime, timedelta
+
+import requests
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+from databricks import sql
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
+
+def _write_parquet(df, path):
+    for col in df.select_dtypes(include=["datetimetz"]).columns:
+        df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
+    for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+        df[col] = df[col].dt.round("ms")
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table, path, coerce_timestamps='ms')
 
 
 def extract_query_logs(directory):
     catalog = 'system'
     database = 'information_schema'
     access_token = os.environ.get('DBR_ACCESS_TOKEN')
-    dbr_warehouse_id = os.environ.get('DBR_WAREHOUSE_ID')
+    http_path = os.environ.get('DBR_WAREHOUSE_HTTP')
     dbr_server_hostname = os.environ.get('DBR_HOST')
-    API_URL = f"https://{dbr_server_hostname}/api/2.0/sql/history/queries"
-    http_path=f'/sql/1.0/warehouses/{dbr_warehouse_id}'
-
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger()
+    start_date_str = os.environ.get('QUERY_LOG_START')
+    end_date_str = os.environ.get('QUERY_LOG_END')
     parquet_output_dir = directory
     os.makedirs(parquet_output_dir, exist_ok=True)
-    def create_DBR_connection():
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
+    except Exception as e:
+        logger.error(f"Invalid date format: {e}")
+        raise
+
+    def create_dbr_connection():
         return sql.connect(
             server_hostname=dbr_server_hostname,
             http_path=http_path,
             access_token=access_token,
             schema=database,
-            catalog=catalog
+            catalog=catalog,
         )
 
-    def create_DBR_con(retry_count=0):
-        max_retry_count = 3
-        logger.info(f'TIMESTAMP : {datetime.now()} Connecting to DBR database ...')
-        now = time.time()
+    def create_dbr_con_with_retry(retry_count=0):
+        max_retries = 3
         try:
-            dbr_connection = create_DBR_connection()
-            logger.info(
-                'TIMESTAMP : {} connected with database {} and catalog {} in {} seconds'.format(datetime.now(),
-                                                                                                database, catalog,
-                                                                                                time.time() - now))
-            return dbr_connection
-        except Exception as e:
-            logger.error(e)
-            logger.error(
-                'TIMESTAMP : {} Failed to connect to the DBR database with {}'.format(datetime.now(),
-                                                                                      database))
-            if retry_count > max_retry_count:
-                raise e
-            logger.error('Retry to connect in {} seconds...'.format(10))
-            retry_count += 1
-            return create_DBR_con(retry_count=retry_count)
+            logger.info(f"[{retry_count + 1}/{max_retries}] Connecting to Databricks SQL warehouse...")
+            conn = create_dbr_connection()
+            logger.info("Connected to Databricks SQL endpoint.")
+            return conn
+        except Exception as err:
+            logger.error(f"Connection failed: {err}")
+            if retry_count >= max_retries - 1:
+                raise
+            time.sleep(10)
+            return create_dbr_con_with_retry(retry_count + 1)
 
-    def fetch_query_history(start_time, end_time):
-        headers = {
-            "Authorization": f"Bearer {access_token}"
-        }
+    def system_query_history_accessible(conn):
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM system.query.history LIMIT 1")
+                cur.fetchall()
+            return True
+        except Exception as e:
+            logger.warning(f"system.query.history is not accessible: {e}")
+            return False
+
+    def extract_via_sql_hourly(conn):
+        current = start_date
+        while current < end_date:
+            next_hour = current + timedelta(hours=1)
+            st = current.strftime('%Y-%m-%d %H:%M:%S')
+            et = next_hour.strftime('%Y-%m-%d %H:%M:%S')
+            query = (
+                f"SELECT * FROM system.query.history"
+                f" WHERE start_time >= TIMESTAMP '{st}'"
+                f"   AND start_time <  TIMESTAMP '{et}'"
+            )
+            logger.info(f"Querying history from {st} to {et}")
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(query)
+                    data = cur.fetchall()
+                    cols = [d[0] for d in cur.description]
+            except Exception as e:
+                logger.error(f"Hourly chunk {st} failed: {e}")
+                current = next_hour
+                continue
+
+            if data:
+                df = pd.DataFrame(data, columns=cols)
+                filename = f"query_history_{current.strftime('%Y%m%d_%H')}.parquet"
+                _write_parquet(df, os.path.join(parquet_output_dir, filename))
+            current = next_hour
+
+    def fetch_query_history_via_rest(start_time_ms, end_time_ms):
+        api_url = f"https://{dbr_server_hostname}/api/2.0/sql/history/queries"
+        headers = {"Authorization": f"Bearer {access_token}"}
         query_history = []
         next_page_token = None
         max_pages = 10000
 
-        logger.info("Starting to fetch query history...")
-
+        logger.info("Starting to fetch query history via REST API...")
         for page_number in range(max_pages):
             payload = {
                 "filter_by": {
                     "statuses": ["FINISHED"],
-                    "start_time_ms": start_time,
-                    "end_time_ms": end_time
+                    "start_time_ms": start_time_ms,
+                    "end_time_ms": end_time_ms,
                 },
                 "include_metrics": True,
-                "max_results": 100
+                "max_results": 100,
             }
-
             if next_page_token:
                 payload["page_token"] = next_page_token
 
             try:
-                response = requests.get(API_URL, json=payload, headers=headers)
+                response = requests.get(api_url, json=payload, headers=headers)
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
                 logger.error(f"Error during API call on page {page_number + 1}: {e}")
                 break
 
             response_data = response.json()
-
-
             queries = response_data.get('res', [])
             query_history.extend(queries)
-            logger.info(f"Page {page_number + 1}: Fetched {len(queries)} queries. Total so far: {len(query_history)}")
+            logger.info(f"Page {page_number + 1}: fetched {len(queries)}. Total: {len(query_history)}")
 
             next_page_token = response_data.get("next_page_token", None)
-
             if not response_data.get("has_more", True) or not next_page_token:
-                logger.info("No more pages to fetch.")
                 break
-
             time.sleep(0.5)
 
-        logger.info(f"Filtering out system-generated queries. Initial count: {len(query_history)}")
         query_history = [
-            query for query in query_history
-            if "This is a system generated query from sql editor" not in query.get("query_text", "")
+            q for q in query_history
+            if "This is a system generated query from sql editor" not in q.get("query_text", "")
         ]
-        logger.info(f"Filtered query count: {len(query_history)}")
+        return query_history
 
-        output_parquet = f"{parquet_output_dir}/query_history_output.parquet"
-        save_query_history_to_parquet(query_history, output_parquet)
-
-    def save_query_history_to_parquet(query_history, output_parquet):
+    def save_rest_history_to_parquet(query_history, output_parquet):
         if not query_history:
             logger.info(f"No data to write in {output_parquet}")
             return
@@ -155,77 +186,40 @@ def extract_query_logs(directory):
                 "pruned_files_count": metrics.get("pruned_files_count"),
                 "provisioning_queue_start_timestamp": metrics.get("provisioning_queue_start_timestamp"),
                 "overloading_queue_start_timestamp": metrics.get("overloading_queue_start_timestamp"),
-                "query_compilation_start_timestamp": metrics.get("query_compilation_start_timestamp")
+                "query_compilation_start_timestamp": metrics.get("query_compilation_start_timestamp"),
             })
 
         df = pd.DataFrame(data)
-        for col in df.select_dtypes(include=["datetimetz"]).columns:
-            df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
-
-        for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
-            df[col] = df[col].dt.round("ms")
-
-        table = pa.Table.from_pandas(df, preserve_index=False)
-
-        pq.write_table(
-            table,
-            output_parquet,
-            coerce_timestamps='ms'
-        )
-
-        df.to_parquet(output_parquet, engine='fastparquet', index=False)
+        _write_parquet(df, output_parquet)
         logger.info(f"Query history exported to {output_parquet}")
 
-    def fetch_query_history_by_date(start_date_str, end_date_str):
-        start_time = datetime.strptime(start_date_str, "%Y-%m-%d")
-        end_time = datetime.strptime(end_date_str, "%Y-%m-%d") + timedelta(days=1) - timedelta(milliseconds=1)
-        start_time_ms = int(start_time.timestamp() * 1000)
-        end_time_ms = int(end_time.timestamp() * 1000)
+    def extract_via_rest():
+        start_ms = int(start_date.timestamp() * 1000)
+        end_ms = int((end_date - timedelta(milliseconds=1)).timestamp() * 1000)
+        history = fetch_query_history_via_rest(start_ms, end_ms)
+        output_parquet = os.path.join(parquet_output_dir, "query_history_output.parquet")
+        save_rest_history_to_parquet(history, output_parquet)
 
-        fetch_query_history(start_time_ms, end_time_ms)
-
-
-    def run_query_rest(query: str):
-        headers = {
-            'Authorization': f"Bearer {access_token}",
-            'Content-Type': 'application/json'
-        }
-        url = f"https://{dbr_server_hostname}/api/2.0/sql/statements"
-        payload = {'statement': query, 'warehouse_id': dbr_warehouse_id}
-        r = requests.post(url, headers=headers, json=payload)
-        r.raise_for_status()
-        sid = r.json()['statement_id']
-        logger.info(f"Submitted {sid}")
-
-        status_url = f"{url}/{sid}"
-        while True:
-            r = requests.get(status_url, headers=headers)
-            r.raise_for_status()
-            j = r.json()
-            state = j['status']['state']
-            if state in ('SUCCEEDED', 'FAILED', 'CANCELED'):
-                break
-            time.sleep(1)
-        if state != 'SUCCEEDED':
-            raise RuntimeError(f"Query {sid} failed: {state}")
-
-        cols = [c['name'] for c in j.get('manifest', {}).get('schema', {}).get('columns', [])]
-        data = j.get('result', {}).get('data_array', [])
-        return cols, data
-
-    start_date = os.environ.get('QUERY_LOG_START')
-    end_date = os.environ.get('QUERY_LOG_END')
-
-    def history_exists_via_rest():
+    conn = None
+    try:
         try:
-            cols, rows = run_query_rest("SELECT 1 FROM system.query.history LIMIT 1")
-            return bool(rows)
+            conn = create_dbr_con_with_retry()
         except Exception as e:
-            logger.warning(f"History‐exists check failed: Fetching query for Query History API")
-            return False
+            logger.warning(f"Could not connect to SQL warehouse ({e})")
 
-    if not history_exists_via_rest():
-        fetch_query_history_by_date(start_date, end_date)
-    else:
-        logger.info("SYSTEM QUERY HISTORY ALREADY POPULATED – skipping fetch_query_history_by_date")
+        use_sql_path = conn is not None and system_query_history_accessible(conn)
 
+        if use_sql_path:
+            logger.info("Extracting query history via system.query.history (hourly chunks)...")
+            extract_via_sql_hourly(conn)
+        else:
+            logger.info("Falling back to Query History REST API...")
+            extract_via_rest()
+    except Exception as e:
+        logger.error(f"Query log extraction failed: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.warning(f"Error closing connection: {e}")

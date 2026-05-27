@@ -1,7 +1,14 @@
-import snowflake.connector
-import pandas as pd
 import os
 import logging
+
+import pandas as pd
+
+from snowflake.snowflake_common import (
+    connect_with_retry,
+    use_role,
+    close_quietly,
+    write_parquet,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -11,90 +18,54 @@ def run_query_and_save_to_csv(cursor, query, csv_filename, csv_output_dir):
         logger.info(f"Executing query for {csv_filename} metadata")
         cursor.execute(query)
         result = cursor.fetchall()
-
         columns = [desc[0] for desc in cursor.description]
-
         df = pd.DataFrame(result, columns=columns)
-
         output_path = os.path.join(csv_output_dir, f'{csv_filename}.parquet')
-        df.to_parquet(output_path, index=False)
+        write_parquet(df, output_path)
         logger.info(f"Data written to {csv_filename}")
     except Exception as e:
         logger.error(f"Failed to execute query for {csv_filename}: {e}")
 
 
 def extract_metadata(directory):
-    host = os.environ.get('SNOWFLAKE_ACCOUNT_IDENTIFIER')
-    warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
-    user = os.environ.get('SNOWFLAKE_USER')
-    auth_type = os.environ.get('SNOWFLAKE_AUTH_TYPE')
-    password = os.environ.get('SNOWFLAKE_PASSWORD')
-    private_key = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PATH')
-    private_key_passphrase = os.environ.get('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') or None
-    passphrase_input_format = os.environ.get('SNOWFLAKE_PASSPHRASE_INPUT_FORMAT') or 'STRING'
-    if private_key_passphrase and passphrase_input_format == 'TEXT_FILE':
-        with open(private_key_passphrase) as f:
-            private_key_passphrase = f.read().strip()
     role = os.environ.get('SNOWFLAKE_ROLE')
     query_log_start = os.environ.get('QUERY_LOG_START')
     query_log_end = os.environ.get('QUERY_LOG_END')
-    database = 'SNOWFLAKE'
-    schema = 'ACCOUNT_USAGE'
-    csv_output_dir = directory
-    os.makedirs(csv_output_dir, exist_ok=True)
+    os.makedirs(directory, exist_ok=True)
+
+    queries = {
+        'tables': """SELECT a.*, b.view_definition
+                FROM SNOWFLAKE.ACCOUNT_USAGE.TABLES a
+                LEFT JOIN SNOWFLAKE.ACCOUNT_USAGE.VIEWS b
+                    ON a.table_catalog = b.table_catalog
+                    AND a.table_schema = b.table_schema
+                    AND a.table_name = b.table_name
+                WHERE a.DELETED IS NULL AND a.table_catalog NOT IN ('SNOWFLAKE')""",
+        'views': """SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.VIEWS
+                    WHERE DELETED IS NULL AND table_catalog NOT IN ('SNOWFLAKE')""",
+        'columns': """SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS
+                    WHERE DELETED IS NULL AND table_catalog NOT IN ('SNOWFLAKE')""",
+        'functions': """SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.FUNCTIONS
+                    WHERE DELETED IS NULL AND function_catalog NOT IN ('SNOWFLAKE')""",
+        'warehouse': """SHOW WAREHOUSES""",
+        'warehouse_usage': f"""SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
+                                WHERE DATE(start_time) between date('{query_log_start}')
+                                AND date('{query_log_end}') """
+    }
+
+    conn = None
+    cursor = None
     try:
-        logger.info("Creating connection with Snowflake")
-        if auth_type == 'USERNAME_PASSWORD':
-            conn = snowflake.connector.connect(
-                user=user,
-                password=password,
-                account=host,
-                warehouse=warehouse,
-                database=database,
-                schema=schema
-            )
-        elif auth_type == 'KEY_PAIR':
-            conn = snowflake.connector.connect(
-                user=user,
-                private_key_file=private_key,
-                private_key_file_pwd=private_key_passphrase,
-                account=host,
-                warehouse=warehouse,
-                database=database,
-                schema=schema
-            )
-        else:
-            raise ValueError(
-                f"Invalid SNOWFLAKE_AUTH_TYPE: {auth_type!r}. "
-                "Must be 'USERNAME_PASSWORD' or 'KEY_PAIR'."
-            )
-
-        queries = {
-            'tables': """SELECT a.table_catalog, a.table_schema, a.table_name, a.table_type, a.row_count, a.bytes, 
-                    a.clustering_key,b.view_definition FROM SNOWFLAKE.ACCOUNT_USAGE.TABLES a left join 
-                    SNOWFLAKE.ACCOUNT_USAGE.VIEWS b on a.table_catalog=b.table_catalog and a.table_schema=b.table_schema
-                     and a.table_name=b.table_name WHERE a.DELETED IS NULL and a.table_catalog not in ('SNOWFLAKE')""",
-            'columns': """SELECT table_catalog, table_schema, table_name, ordinal_position, column_name, data_type 
-                        FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE DELETED IS NULL""",
-            'functions': """SELECT function_schema, function_name, data_type, FUNCTION_LANGUAGE, FUNCTION_DEFINITION, 
-                        argument_signature FROM SNOWFLAKE.ACCOUNT_USAGE.FUNCTIONS WHERE DELETED IS NULL""",
-            'warehouse': """SHOW WAREHOUSES""",
-            'warehouse_usage': f"""SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
-                                    WHERE DATE(start_time) between date('{query_log_start}')
-                                    AND date('{query_log_end}') """
-        }
-
+        conn = connect_with_retry()
         cursor = conn.cursor()
-        logger.info("Connected to Snowflake.")
-
-        use_admin_role = f"USE ROLE {role};"
-        cursor.execute(use_admin_role)
-        logger.info(f"Using {role} for extracting metadata")
+        use_role(cursor, role)
+        logger.info("Using role for extracting metadata")
 
         for csv_filename, query in queries.items():
-            run_query_and_save_to_csv(cursor, query, csv_filename, csv_output_dir)
-        cursor.close()
-        conn.close()
-        logger.info("Connection Closed.")
+            run_query_and_save_to_csv(cursor, query, csv_filename, directory)
+        logger.info("Metadata extraction completed.")
     except Exception as e:
-        logger.error(f"Error extracting Snowflake metadata: {str(e)}")
+        logger.error(f"Error extracting Snowflake metadata: {e}")
+    finally:
+        close_quietly(cursor, conn)
+        logger.info("Connection Closed.")

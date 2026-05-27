@@ -22,7 +22,8 @@ Pre Assessment Requirements:
 
 > pip install pandas \
 > pip install pyarrow \
-> pip install databricks-sql-connector 
+> pip install databricks-sql-connector \
+> pip install requests
 
 Set environment variables pertaining to your databricks configurations (host, access_token, warehouse_id, etc.)
 
@@ -199,5 +200,5 @@ To run the assessment script :
 
 > python3 clients/main.py athena
 ```
-Two directories named <client>-metadata for Metadata and <client>-query-logs for Query Logs will be generated with the help of above script.
+A directory named <client>-logs containing both metadata and query log parquet files will be generated and then compressed into <client>-logs.zip.
 ```

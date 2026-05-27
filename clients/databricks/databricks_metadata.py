@@ -1,6 +1,5 @@
 from databricks import sql
 import pandas as pd
-from datetime import datetime, timedelta
 import os
 import time
 import logging
@@ -11,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def extract_metadata(directory):
-    export_metadata = os.environ.get('EXPORT_METADATA', False)
+    export_metadata = str(os.environ.get('EXPORT_METADATA', '')).strip().lower() == 'true'
     catalog = 'system'
     database = 'information_schema'
     access_token = os.environ.get('DBR_ACCESS_TOKEN')
@@ -19,14 +18,6 @@ def extract_metadata(directory):
     dbr_server_hostname = os.environ.get('DBR_HOST')
     start_date_str = os.environ.get('QUERY_LOG_START')
     end_date_str = os.environ.get('QUERY_LOG_END')
-
-    # parse date bounds
-    try:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        end_date   = datetime.strptime(end_date_str,   '%Y-%m-%d') + timedelta(days=1)
-    except Exception as e:
-        logger.error(f"Invalid date format: {e}")
-        raise
 
     output_dir = directory
     os.makedirs(output_dir, exist_ok=True)
@@ -53,8 +44,6 @@ def extract_metadata(directory):
                 raise
             time.sleep(10)
             return create_DBR_con(retry_count + 1)
-
-    conn = create_DBR_con()
 
     queries_metadata = {
         'tables': "SELECT * FROM system.information_schema.tables;",
@@ -155,51 +144,23 @@ def extract_metadata(directory):
         except Exception as e:
             logger.error(f"Error in {name}: {e}")
 
-    if export_metadata:
-        for name, q in queries_metadata.items():
+    conn = None
+    try:
+        conn = create_DBR_con()
+
+        if export_metadata:
+            for name, q in queries_metadata.items():
+                run_query_and_save(q, name)
+
+        for name, q in queries.items():
             run_query_and_save(q, name)
 
-    for name, q in queries.items():
-        run_query_and_save(q, name)
-
-    # hourly query history
-    def run_hourly_query_history(outdir):
-        current = start_date
-        while current < end_date:
-            next_hour = current + timedelta(hours=1)
-            st = current.strftime('%Y-%m-%d %H:%M:%S')
-            et = next_hour.strftime('%Y-%m-%d %H:%M:%S')
-            query = (
-                f"SELECT * FROM system.query.history"
-                f" WHERE start_time >= TIMESTAMP '{st}'"
-                f"   AND start_time <  TIMESTAMP '{et}'"
-            )
-            logger.info(f"Querying history from {st} to {et}")
-            with conn.cursor() as cur:
-                cur.execute(query)
-                data = cur.fetchall()
-                cols = [d[0] for d in cur.description]
-
-            if data:
-                df = pd.DataFrame(data, columns=cols)
-
-                for col in df.select_dtypes(include=["datetimetz"]).columns:
-                    df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
-
-                for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
-                    df[col] = df[col].dt.round("ms")
-
-                table = pa.Table.from_pandas(df, preserve_index=False)
-                filename = f"query_history_{current.strftime('%Y%m%d_%H')}.parquet"
-
-                pq.write_table(
-                    table,
-                    os.path.join(outdir, filename),
-                    coerce_timestamps='ms'
-                )
-
-            current = next_hour
-
-    run_hourly_query_history(output_dir)
-    conn.close()
-    logger.info("Databricks metadata extraction completed.")
+        logger.info("Databricks metadata extraction completed.")
+    except Exception as e:
+        logger.error(f"Databricks metadata extraction failed: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.warning(f"Error closing connection: {e}")
