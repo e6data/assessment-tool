@@ -34,52 +34,10 @@ def extract_query_logs(directory):
         logger.info("Using role for extracting query logs")
 
         history_query = f"""
-            SELECT reader_account_name, query_id, query_text,
-                       database_id, database_name, schema_id, schema_name, query_type,
-                       session_id, authn_event_id,
-                       user_name, role_name,
-                       warehouse_id, warehouse_name, warehouse_size, warehouse_type,
-                       cluster_number, query_tag, execution_status,
-                       error_code, error_message, start_time, end_time,
-                       total_elapsed_time,
-                       bytes_scanned, percentage_scanned_from_cache,
-                       bytes_written, bytes_written_to_result, bytes_read_from_result,
-                       rows_produced, rows_inserted, rows_updated, rows_deleted,
-                       rows_unloaded, bytes_deleted,
-                       partitions_scanned, partitions_total,
-                       bytes_spilled_to_local_storage, bytes_spilled_to_remote_storage,
-                       bytes_sent_over_the_network,
-                       compilation_time, execution_time,
-                       queued_provisioning_time, queued_repair_time, queued_overload_time,
-                       transaction_blocked_time,
-                       outbound_data_transfer_cloud, outbound_data_transfer_region,
-                       outbound_data_transfer_bytes,
-                       inbound_data_transfer_cloud, inbound_data_transfer_region,
-                       inbound_data_transfer_bytes,
-                       list_external_files_time,
-                       credits_used_cloud_services,
-                       reader_account_deleted_on,
-                       release_version,
-                       external_function_total_invocations,
-                       external_function_total_sent_rows, external_function_total_received_rows,
-                       external_function_total_sent_bytes, external_function_total_received_bytes,
-                       query_load_percent, is_client_generated_statement,
-                       query_acceleration_bytes_scanned, query_acceleration_partitions_scanned,
-                       query_acceleration_upper_limit_scale_factor,
-                       transaction_id, child_queries_wait_time, role_type,
-                       query_hash, query_hash_version,
-                       query_parameterized_hash, query_parameterized_hash_version,
-                       secondary_role_stats,
-                       rows_written_to_result,
-                       query_retry_time, query_retry_cause, fault_handling_time,
-                       user_type,
-                       user_database_name, user_database_id,
-                       user_schema_name, user_schema_id,
-                       bind_values
+            SELECT *
             FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
             WHERE end_time >= to_timestamp_ltz('{start_timestamp}')
-            AND end_time <= to_timestamp_ltz('{end_timestamp}')
-            AND is_client_generated_statement = FALSE;
+            AND end_time <= to_timestamp_ltz('{end_timestamp}');
         """
         logger.info("Fetching query history; this may take a few minutes...")
         cursor.execute(history_query)
