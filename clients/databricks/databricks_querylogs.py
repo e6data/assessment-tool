@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -13,6 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 def _write_parquet(df, path):
+    # Convert dict/list columns to JSON strings (e.g., query_parameters)
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            # Check if any value in the column is a dict or list
+            sample = df[col].dropna().head(1)
+            if len(sample) > 0 and isinstance(sample.iloc[0], (dict, list)):
+                df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x)
+
     for col in df.select_dtypes(include=["datetimetz"]).columns:
         df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
     for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
