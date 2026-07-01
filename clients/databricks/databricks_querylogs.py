@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+import numpy as np
 import requests
 import pandas as pd
 import pyarrow as pa
@@ -13,14 +14,33 @@ from databricks import sql
 logger = logging.getLogger(__name__)
 
 
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles numpy arrays and types."""
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.integer, np.int64)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float64)):
+            return float(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        return super().default(obj)
+
+
 def _write_parquet(df, path):
-    # Convert dict/list columns to JSON strings (e.g., query_parameters)
+    # Convert dict/list/ndarray columns to JSON strings (e.g., query_parameters)
+    def serialize_value(x):
+        if isinstance(x, (dict, list, np.ndarray)):
+            return json.dumps(x, cls=NumpyEncoder)
+        return x
+
     for col in df.columns:
         if df[col].dtype == 'object':
-            # Check if any value in the column is a dict or list
+            # Check if any value in the column is a dict, list, or ndarray
             sample = df[col].dropna().head(1)
-            if len(sample) > 0 and isinstance(sample.iloc[0], (dict, list)):
-                df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x)
+            if len(sample) > 0 and isinstance(sample.iloc[0], (dict, list, np.ndarray)):
+                df[col] = df[col].apply(serialize_value)
 
     for col in df.select_dtypes(include=["datetimetz"]).columns:
         df[col] = df[col].dt.tz_convert("UTC").dt.tz_localize(None)
