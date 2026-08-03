@@ -14,13 +14,31 @@ from databricks import sql
 logger = logging.getLogger(__name__)
 
 
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles numpy types."""
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.str_):
+            return str(obj)
+        if pd.isna(obj):
+            return None
+        return super().default(obj)
+
+
 def _write_parquet(df, path):
     # Convert dict/list/ndarray columns to JSON strings (e.g., query_parameters)
     def serialize_value(x):
         if isinstance(x, np.ndarray):
-            return json.dumps(x.tolist())
+            return json.dumps(x.tolist(), cls=NumpyEncoder)
         elif isinstance(x, (dict, list)):
-            return json.dumps(x)
+            return json.dumps(x, cls=NumpyEncoder)
         return x
 
     for col in df.columns:
